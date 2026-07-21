@@ -95,6 +95,9 @@ const routes: RouteRecordRaw[] = [
       { path: 'audit',      name: 'Reports.Audit',      component: () => import('@/views/reports/AuditReport.vue'),      meta: { resource: 'engagement_score' } },
       // Broadcast tự động (🟢 Community extension 2026-07-06)
       { path: 'broadcast',  name: 'Reports.Broadcast',  component: () => import('@/views/reports/BroadcastReport.vue'),  meta: { resource: 'engagement_score' } },
+      // Sprint 4 R7 2026-07-21: Customer Journey Funnel
+      { path: 'journey',               name: 'Reports.Journey',          component: () => import('@/views/reports/JourneyFunnelView.vue'),   meta: { resource: 'engagement_score' } },
+      { path: 'journey/:stage',        name: 'Reports.Journey.Stage',    component: () => import('@/views/reports/JourneyStageDetailView.vue'), meta: { resource: 'engagement_score' } },
       ...eeReportsChildren,
     ],
   },
@@ -231,6 +234,10 @@ const routes: RouteRecordRaw[] = [
           { path: 'content-blocks', name: 'CE.ContentBlocks', component: () => import('@/views/marketing/ContentBlocksView.vue'), meta: { requiresAuth: true } },
           // Mục tiêu (auto kết bạn) — Community extension 2026-07-07.
           { path: 'targets', name: 'CE.Targets', component: () => import('@/views/marketing/TargetsView.vue'), meta: { requiresAuth: true } },
+          // Sprint 4 R8 2026-07-21: Sales Pipeline Kanban.
+          { path: 'pipeline', name: 'CE.Pipeline', component: () => import('@/views/marketing/PipelineKanbanView.vue'), meta: { requiresAuth: true } },
+          // Sprint 5 R11 2026-07-21: AI Campaign Studio.
+          { path: 'ai-studio', name: 'CE.AiStudio', component: () => import('@/views/marketing/AiCampaignStudioView.vue'), meta: { requiresAuth: true } },
         ],
       } as RouteRecordRaw]
     : []),

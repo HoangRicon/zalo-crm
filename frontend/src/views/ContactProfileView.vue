@@ -68,6 +68,12 @@
           tại <code>backend/src/modules/contacts/contact-routes.ts</code>.
         </p>
       </section>
+
+      <!-- Sprint 3 R6 2026-07-21: Scoring visualizer đã có backend sẵn. Mount vào skeleton view. -->
+      <section class="cp-scoring-section">
+        <h2>📊 Điểm & Tín hiệu (R6 2026-07-21)</h2>
+        <ScoringTab :contact-id="contactId" />
+      </section>
     </div>
   </div>
 </template>
@@ -75,6 +81,8 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
+// Sprint 3 R6 2026-07-21: Scoring Visualizer tab
+import ScoringTab from '@/components/contacts/ScoringTab.vue';
 import { useContactProfile } from '@/composables/use-contact-profile';
 
 const route = useRoute();

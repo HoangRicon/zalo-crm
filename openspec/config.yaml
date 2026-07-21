@@ -1,0 +1,41 @@
+schema: spec-driven
+
+# Project context — shown to AI when creating artifacts
+context: |
+  Dự án: ZCRM (Zalo CRM) — open-core, license AGPL-3.0.
+  Tech stack:
+    - Backend: Node.js + Fastify + TypeScript + Prisma ORM + PostgreSQL.
+    - Frontend: Vue 3 + Vite + TypeScript + Vuetify (v-icon) + Pinia + vue-router.
+    - Workers: BullMQ + Redis (cho broadcast, friend-invite, scoring).
+    - AI: 5 providers đang có (anthropic, gemini, openai, qwen, kimi) — quản lý
+      per-org qua app_settings table (key/value encrypted/plain).
+    - Storage: MinIO/S3-compatible cho media.
+  Domain:
+    - CRM đa kênh (chính: Zalo cá nhân + Telegram bridge + Lead Ads FB/TikTok/Google).
+    - Multi-tenant: mọi query scope theo orgId (có tenant-guard + RLS middleware).
+    - Open-core model: Community Edition (miễn phí, public) + Enterprise Edition (EE, private).
+      Các tính năng EE inject qua @ee seam, Community resolve @ee sang _ee-stubs (render rỗng).
+  Testing:
+    - Backend: Vitest + supertest cho route/service; manual e2e qua Postman collection.
+    - Frontend: TypeScript typecheck (vue-tsc) + manual UI test.
+    - Lint: ESLint, prettier cho backend; ESLint cho frontend.
+  Conventions:
+    - Conventional commits (feat/fix/refactor/chore/docs/...).
+    - Backend mỗi module: routes/ + service/ + tests/.
+    - Frontend dùng Vue 3 Composition API + script setup.
+    - Tiếng Việt cho UI copy + comments.
+
+# Per-artifact rules
+rules:
+  proposal:
+    - Always include "Non-goals" section
+    - Link to parent recovery plan: docs/plans/MARKETING-AUTOMATION-RECOVERY-PLAN.md
+  specs:
+    - Use Given/When/Then format for acceptance scenarios
+    - Mỗi capability riêng 1 file spec
+  design:
+    - Sequence diagrams cho AI provider flow + import CSV flow
+    - Note rollback strategy cho mỗi schema change
+  tasks:
+    - Break into chunks of max 2 hours
+    - Mỗi task có file paths (Create/Modify/Test) + verify command

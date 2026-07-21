@@ -12,10 +12,10 @@
         </div>
       </div>
       <div class="actions">
-        <button class="btn btn-ghost btn-sm" disabled title="Nhập danh sách từ tệp CSV">
-          <v-icon size="16">mdi-upload</v-icon> Import CSV
+        <button class="btn btn-ghost btn-sm" title="Nhập danh sách từ tệp CSV/Excel/Paste" @click="openImportCsv">
+          <v-icon size="16">mdi-upload</v-icon> Import
         </button>
-        <button class="btn btn-primary btn-sm" @click="showCreate = true">
+        <button class="btn btn-primary btn-sm" @click="openCreateEmpty">
           <v-icon size="16">mdi-plus-circle-outline</v-icon> Tạo tệp
         </button>
       </div>
@@ -208,8 +208,11 @@
                 </span>
               </td>
               <td class="row-actions" @click.stop>
-                <button class="btn btn-ghost btn-icon btn-sm" title="Tạo campaign từ tệp này">
+                <button class="btn btn-ghost btn-icon btn-sm" title="Tạo broadcast từ tệp này" @click.stop="goCreateBroadcast(list.id)">
                   <v-icon size="15">mdi-send</v-icon>
+                </button>
+                <button class="btn btn-ghost btn-icon btn-sm" title="Tạo campaign mục tiêu từ tệp này" @click.stop="goCreateCampaign(list.id)">
+                  <v-icon size="15">mdi-account-multiple-plus-outline</v-icon>
                 </button>
                 <button class="btn btn-ghost btn-icon btn-sm" title="Export CSV">
                   <v-icon size="15">mdi-download</v-icon>
@@ -279,7 +282,7 @@
       </div>
     </div>
 
-    <CreateListModal v-model="showCreate" @created="onCreated" />
+    <CreateListModal v-model="showCreate" :initial-tab="createInitialTab" @created="onCreated" />
   </div>
 </template>
 
@@ -329,6 +332,29 @@ const {
 } = useCustomerLists();
 
 const showCreate = ref(false);
+const createInitialTab = ref<'paste' | 'excel' | 'csv' | 'leadads'>('paste');
+
+// Sprint 0+R1 2026-07-21: Khôi phục tính năng Import CSV. Modal đã có sẵn các tab;
+// chỉ cần chuyển initialTab cho đúng (csv/excel/paste). User vẫn tự chuyển được.
+function openImportCsv() {
+  createInitialTab.value = 'csv';
+  showCreate.value = true;
+}
+
+function openCreateEmpty() {
+  createInitialTab.value = 'paste';
+  showCreate.value = true;
+}
+
+// Sprint 1 R3 2026-07-21: Phase 4 wire row-actions để navigate nhanh tới broadcast/campaign.
+// KHÔNG bubble lên row-click (đã có @click.stop ở <td> + @click.stop trên button).
+function goCreateBroadcast(listId: string) {
+  router.push({ path: '/marketing/broadcasts', query: { listId } });
+}
+
+function goCreateCampaign(listId: string) {
+  router.push({ path: '/marketing/targets', query: { listId } });
+}
 
 onMounted(() => fetchLists());
 

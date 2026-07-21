@@ -290,7 +290,12 @@ async function parseSheetToRows(buf: ArrayBuffer, filename: string): Promise<unk
   return out;
 }
 
-const props = defineProps<{ modelValue: boolean }>();
+const props = defineProps<{
+  modelValue: boolean;
+  /** Sprint 0+R1 2026-07-21: pre-select tab khi mở modal từ nút Import CSV/Excel/Paste.
+   * Mặc định 'paste' để giữ behavior cũ (khi mở từ nút "Tạo tệp" rỗng). */
+  initialTab?: 'paste' | 'excel' | 'csv' | 'leadads';
+}>();
 const emit = defineEmits<{
   (e: 'update:modelValue', v: boolean): void;
   (e: 'created', payload: { id: string }): void;
@@ -315,6 +320,14 @@ const TABS = [
 ];
 type TabKey = 'paste' | 'excel' | 'csv' | 'leadads';
 const activeTab = ref<TabKey>('paste');
+
+// Sprint 0+R1 2026-07-21: Khi parent set initialTab, đồng bộ activeTab ngay khi mở modal.
+// Đặt trong watch() thay vì computed() để user vẫn switch tự do sau khi modal mở.
+watch(() => props.modelValue, (open) => {
+  if (open && props.initialTab) {
+    activeTab.value = props.initialTab;
+  }
+}, { immediate: true });
 
 // ───────── Tab leadads ─────────
 const LEAD_PLATFORMS = [

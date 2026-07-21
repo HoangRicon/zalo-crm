@@ -314,6 +314,65 @@ export async function aiRoutes(app: FastifyInstance) {
     }
   });
 
+  // ── Sprint 2 R5 2026-07-21: POST /ai/suggest-content-blocks ──────────────
+  // Body: { userIntent: string, count?: number }
+  // Response: { suggestions: [{ name, messageText, imageKeyword? }], source: 'ai'|'fallback' }
+  app.post('/api/v1/ai/suggest-content-blocks', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const body = request.body as { userIntent?: string; count?: number };
+      if (!body?.userIntent?.trim()) return reply.status(400).send({ error: 'userIntent is required' });
+      if (body.userIntent.length > 500) return reply.status(400).send({ error: 'userIntent quá dài (tối đa 500 ký tự)' });
+      const { suggestContentBlocks } = await import('./ai-service.js');
+      return await suggestContentBlocks({
+        orgId: request.user!.orgId,
+        userIntent: body.userIntent,
+        count: body.count,
+      });
+    } catch (err) {
+      logger.error('[ai] Suggest-content-blocks error:', err);
+      return sendHandledError(reply, err, 'Không gợi ý được content block');
+    }
+  });
+
+  // ── Sprint 5 R11 2026-07-21: POST /ai/plan-campaign ───────────────────────
+  // Body: { userGoal: string }
+  // Response: { plan: CampaignPlan, planId: string, source: 'ai'|'rule_based' }
+  app.post('/api/v1/ai/plan-campaign', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const body = request.body as { userGoal?: string };
+      if (!body?.userGoal?.trim()) return reply.status(400).send({ error: 'userGoal is required' });
+      if (body.userGoal.length > 1000) return reply.status(400).send({ error: 'userGoal quá dài (tối đa 1000 ký tự)' });
+      const { planCampaign } = await import('./ai-service.js');
+      return await planCampaign({
+        orgId: request.user!.orgId,
+        userId: request.user!.id,
+        userGoal: body.userGoal,
+      });
+    } catch (err) {
+      logger.error('[ai] Plan-campaign error:', err);
+      return sendHandledError(reply, err, 'Không tạo được plan');
+    }
+  });
+
+  // ── Sprint 5 R11 2026-07-21: POST /ai/plan-campaign/:id/apply ────────────
+  // Tạo BroadcastJob từ plan đã lưu.
+  app.post<{ Params: { id: string } }>('/api/v1/ai/plan-campaign/:id/apply', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const { applyCampaignPlan } = await import('./ai-service.js');
+      return await applyCampaignPlan({
+        orgId: request.user!.orgId,
+        planId: request.params.id,
+        userId: request.user!.id,
+      });
+    } catch (err: any) {
+      const msg = err?.message ?? 'unknown';
+      logger.error('[ai] Apply-campaign-plan error:', msg);
+      if (msg === 'plan_not_found') return reply.status(404).send({ error: msg });
+      if (msg === 'no_active_nick') return reply.status(400).send({ error: msg, hint: 'Thêm nick Zalo trước khi tạo plan' });
+      return reply.status(500).send({ error: 'apply_failed' });
+    }
+  });
+
   // ── M53 2026-05-30 — AI Trợ Lý Virtual Chat ──────────────────────────────
 
   // GET /ai/assistant-config — load prompt template + toggle + skip regex

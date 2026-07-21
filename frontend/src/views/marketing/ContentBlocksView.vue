@@ -17,6 +17,9 @@
         </div>
       </div>
       <div class="actions">
+        <button class="btn btn-ghost btn-sm" @click="showAiSuggest = true">
+          <v-icon size="16">mdi-sparkles</v-icon> AI gợi ý
+        </button>
         <button class="btn btn-primary btn-sm" @click="openCreate">
           <v-icon size="16">mdi-plus-circle-outline</v-icon> Tạo khối nội dung
         </button>
@@ -103,12 +106,24 @@
         </div>
       </div>
     </div>
+
+    <!-- Sprint 2 R5 2026-07-21: AI Suggest modal -->
+    <AiSuggestModal
+      :open="showAiSuggest"
+      @close="showAiSuggest = false"
+      @selected="onAiSuggestionSelected"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { api } from '@/api/index';
+import AiSuggestModal from '@/components/marketing/AiSuggestModal.vue';
+import { useToast } from '@/composables/use-toast';
+
+const { push: toast } = useToast();
+const showAiSuggest = ref(false);
 import { listMedia, type MediaAssetItem } from '@/api/media';
 import { useToast } from '@/composables/use-toast';
 import { useConfirm } from '@/composables/use-confirm';
@@ -127,6 +142,18 @@ const saving = ref(false);
 const editing = ref<BlockRow | null>(null);
 
 const form = reactive({ name: '', messageText: '', imageUrl: '' });
+
+/** Sprint 2 R5 2026-07-21: Khi user chọn 1 suggestion từ AiSuggestModal, mở form create
+ * với name + messageText đã fill sẵn. */
+function onAiSuggestionSelected(s: { name: string; messageText: string; imageKeyword?: string }): void {
+  showAiSuggest.value = false;
+  editing.value = null;
+  form.name = s.name;
+  form.messageText = s.messageText;
+  form.imageUrl = '';
+  showForm.value = true;
+  toast('Đã fill form từ AI gợi ý. Sửa nội dung nếu cần rồi bấm Tạo.', 'success');
+}
 
 async function load(): Promise<void> {
   loading.value = true;

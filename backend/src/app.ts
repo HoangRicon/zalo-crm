@@ -345,6 +345,17 @@ async function bootstrap() {
   await app.register(friendRoutes);
   await app.register(profileRoutes);
   await app.register(credentialRoutes);
+  // Sprint 3 R9 2026-07-21: Churn Risk Detector (🟢 Community)
+  const { churnRoutes } = await import('./modules/churn-risk/churn-routes.js');
+  await app.register(churnRoutes);
+  // Sprint 3 R6 + Sprint 4 R7 2026-07-21: Scoring visualizer + Journey funnel
+  const { scoringRoutes } = await import('./modules/contacts/scoring-routes.js');
+  await app.register(scoringRoutes);
+  const { journeyRoutes } = await import('./modules/reports/journey-routes.js');
+  await app.register(journeyRoutes);
+  // Sprint 6 R10 2026-07-21: Facebook webhook (multi-channel inbox)
+  const { facebookWebhookRoutes } = await import('./modules/webhooks/facebook-webhook-route.js');
+  await app.register(facebookWebhookRoutes);
 
   // Open-core: extension route registrations (no-op in Community edition).
   await ee?.registerExtensionRoutes?.(app);
@@ -413,6 +424,9 @@ async function bootstrap() {
       startBroadcastCron(io);
       const { startTargetCron } = await import('./modules/target/target-cron.js');
       startTargetCron();
+      // Sprint 3 R9 2026-07-21: Churn Risk cron nightly 02:00 local.
+      const { startChurnCron } = await import('./modules/churn-risk/churn-cron.js');
+      startChurnCron();
     }
     // Group info refresh periodic (mỗi 6h) — làm tươi avatar/tên/sĩ số nhóm chống
     // URL Zalo CDN hết hạn (nhóm im lặng lâu không có message để cập nhật thụ động).

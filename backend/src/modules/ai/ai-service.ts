@@ -613,3 +613,255 @@ export async function aiFormatRichText(input: { orgId: string; rawText: string }
     return { text, styles: [], source: 'fallback' };
   }
 }
+
+// ── Sprint 2 R5 (2026-07-21): AI suggest content blocks ────────────────────
+// Sprint 3 R9: AI churn risk scoring
+
+import { buildContentBlockSuggestPrompt, FALLBACK_CONTENT_BLOCKS } from './prompts/content-block-suggest.js';
+import { buildChurnDetectorPrompt, ruleBasedChurn } from './prompts/churn-detector.js';
+// Sprint 5 R11 2026-07-21: Campaign planner
+import { buildCampaignPlannerPrompt, ruleBasedCampaignPlan, type CampaignPlan } from './prompts/campaign-planner.js';
+import { computeNextRunAt } from '../broadcast/broadcast-service.js';
+
+export interface ContentBlockSuggestion {
+  name: string;
+  messageText: string;
+  imageKeyword?: string;
+}
+
+/**
+ * Gợi ý 3-5 biến thể tin nhắn cho Content Block.
+ * - Timeout 8s (race Promise).
+ * - AI fail / parse fail / JSON lỗi → trả 3 fallback templates.
+ * - Quota tracking: chỉ tăng khi source='ai'.
+ */
+export async function suggestContentBlocks(input: {
+  orgId: string;
+  userIntent: string;
+  count?: number;
+}): Promise<{ suggestions: ContentBlockSuggestion[]; source: 'ai' | 'fallback' }> {
+  const cfg = await getAiConfig(input.orgId);
+  if (!cfg.enabled) {
+    return { suggestions: FALLBACK_CONTENT_BLOCKS, source: 'fallback' };
+  }
+  const { system, user } = buildContentBlockSuggestPrompt({ userIntent: input.userIntent, count: input.count });
+  const apiKey = await resolveProviderApiKey(input.orgId, cfg.provider);
+  const baseUrl = await getProviderBaseUrl(input.orgId, cfg.provider);
+
+  try {
+    const raw = await Promise.race([
+      generateText(cfg.provider, apiKey, cfg.model, system, user, 800, baseUrl),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout_8s')), 8000)),
+    ]);
+
+    // Parse JSON robust
+    let cleaned = raw.replace(/^﻿/, '').trim();
+    cleaned = cleaned.replace(/^```(?:json|javascript|js)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    if (!cleaned.startsWith('[')) {
+      const first = cleaned.indexOf('[');
+      if (first >= 0) cleaned = cleaned.slice(first);
+    }
+    const parsed = JSON.parse(cleaned) as ContentBlockSuggestion[];
+    // Validate
+    const valid = parsed
+      .filter((s) => s?.messageText && s.messageText.length <= 200 && s.messageText.includes('{{ten}}'))
+      .slice(0, 5);
+    if (!valid.length) throw new Error('no_valid_suggestions');
+
+    // Track quota
+    await saveSuggestion({
+      orgId: input.orgId,
+      conversationId: null,
+      type: 'reply_draft',
+      content: JSON.stringify({ kind: 'content_block_suggest', count: valid.length }),
+      confidence: 0.85,
+    }).catch(() => {});
+
+    return { suggestions: valid, source: 'ai' };
+  } catch (err) {
+    logger.warn('[ai-suggest-content-blocks] AI failed:', err);
+    return { suggestions: FALLBACK_CONTENT_BLOCKS, source: 'fallback' };
+  }
+}
+
+export interface ChurnScoreResult {
+  riskLevel: 'low' | 'medium' | 'high';
+  reasons: string[];
+  suggestedAction: string;
+  source: 'ai' | 'rule_based';
+}
+
+/**
+ * Đánh giá churn risk cho 1 contact dựa trên 10 tin gần nhất.
+ * - Timeout 10s.
+ * - AI fail → rule-based fallback (dựa trên lastInteractionDays + sentiment).
+ * - Quota tracking: chỉ tăng khi source='ai'.
+ */
+export async function scoreChurnForContact(input: {
+  orgId: string;
+  messages: Array<{ sender: 'self' | 'contact'; text: string; sentAt: string }>;
+  lastInteractionDays: number;
+  avgSentiment?: number | null;
+}): Promise<ChurnScoreResult> {
+  const cfg = await getAiConfig(input.orgId);
+  // Nếu AI tắt hoặc quá ít message cho AI (>= 2 mới gọi) → rule-based
+  const useAi = cfg.enabled && input.messages.length >= 2;
+  if (!useAi) {
+    return { ...ruleBasedChurn({ lastInteractionDays: input.lastInteractionDays, avgSentiment: input.avgSentiment }), source: 'rule_based' };
+  }
+
+  const { system, user } = buildChurnDetectorPrompt({
+    messages: input.messages,
+    lastInteractionDays: input.lastInteractionDays,
+  });
+  const apiKey = await resolveProviderApiKey(input.orgId, cfg.provider);
+  const baseUrl = await getProviderBaseUrl(input.orgId, cfg.provider);
+
+  try {
+    const raw = await Promise.race([
+      generateText(cfg.provider, apiKey, cfg.model, system, user, 400, baseUrl),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout_10s')), 10000)),
+    ]);
+    let cleaned = raw.replace(/^﻿/, '').trim();
+    cleaned = cleaned.replace(/^```(?:json|javascript|js)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    if (!cleaned.startsWith('{')) {
+      const first = cleaned.indexOf('{');
+      if (first >= 0) cleaned = cleaned.slice(first);
+    }
+    const parsed = JSON.parse(cleaned) as { riskLevel: string; reasons: string[]; suggestedAction: string };
+    if (!['low', 'medium', 'high'].includes(parsed.riskLevel)) throw new Error('invalid_risk_level');
+    if (!Array.isArray(parsed.reasons)) parsed.reasons = [];
+    if (typeof parsed.suggestedAction !== 'string') parsed.suggestedAction = '';
+
+    await saveSuggestion({
+      orgId: input.orgId,
+      conversationId: null,
+      type: 'reply_draft',
+      content: JSON.stringify({ kind: 'churn_risk', level: parsed.riskLevel }),
+      confidence: 0.75,
+    }).catch(() => {});
+
+    return { ...parsed, source: 'ai' } as ChurnScoreResult;
+  } catch (err) {
+    logger.warn('[ai-churn] AI failed:', err);
+    return { ...ruleBasedChurn({ lastInteractionDays: input.lastInteractionDays, avgSentiment: input.avgSentiment }), source: 'rule_based' };
+  }
+}
+
+/**
+ * Sprint 5 R11 2026-07-21: AI sinh plan campaign.
+ * Returns { plan, planId, source } — planId dùng để apply sau.
+ */
+export async function planCampaign(input: {
+  orgId: string;
+  userGoal: string;
+  userId: string;
+}): Promise<{ plan: CampaignPlan; planId: string; source: 'ai' | 'rule_based' }> {
+  const orgStats = await getOrgStatsForPlanning(input.orgId);
+  const cfg = await getAiConfig(input.orgId);
+  const ruleBasedFallback = ruleBasedCampaignPlan({ userGoal: input.userGoal, orgStats });
+
+  if (!cfg.enabled) {
+    const planRow = await persistCampaignPlan(input, ruleBasedFallback, 'rule_based');
+    return { plan: ruleBasedFallback, planId: planRow.id, source: 'rule_based' };
+  }
+
+  const { system, user } = buildCampaignPlannerPrompt({ userGoal: input.userGoal, orgStats });
+  const apiKey = await resolveProviderApiKey(input.orgId, cfg.provider);
+  const baseUrl = await getProviderBaseUrl(input.orgId, cfg.provider);
+
+  try {
+    const raw = await Promise.race([
+      generateText(cfg.provider, apiKey, cfg.model, system, user, 1200, baseUrl),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout_8s')), 8000)),
+    ]);
+    let cleaned = raw.replace(/^﻿/, '').trim();
+    cleaned = cleaned.replace(/^```(?:json|javascript|js)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    if (!cleaned.startsWith('{')) {
+      const first = cleaned.indexOf('{');
+      if (first >= 0) cleaned = cleaned.slice(first);
+    }
+    const parsed = JSON.parse(cleaned) as CampaignPlan;
+    // Validate cơ bản
+    if (!parsed.audience?.segments || !Array.isArray(parsed.messages) || !parsed.schedule?.sendAtISO) {
+      throw new Error('invalid_plan_structure');
+    }
+    if (parsed.audience.estimatedReach > orgStats.totalContacts) {
+      parsed.audience.estimatedReach = orgStats.totalContacts;
+    }
+    const planRow = await persistCampaignPlan(input, parsed, 'ai');
+    return { plan: parsed, planId: planRow.id, source: 'ai' };
+  } catch (err) {
+    logger.warn('[ai-campaign-planner] AI failed:', err);
+    const planRow = await persistCampaignPlan(input, ruleBasedFallback, 'rule_based');
+    return { plan: ruleBasedFallback, planId: planRow.id, source: 'rule_based' };
+  }
+}
+
+async function persistCampaignPlan(input: { orgId: string; userId: string; userGoal: string }, plan: CampaignPlan, source: string) {
+  return prisma.campaignPlan.create({
+    data: {
+      orgId: input.orgId,
+      createdById: input.userId,
+      userGoal: input.userGoal,
+      plan: plan as unknown as object,
+      source,
+    },
+  });
+}
+
+async function getOrgStatsForPlanning(orgId: string): Promise<{ totalContacts: number; activeContacts: number; hotCount: number; coolingCount: number }> {
+  const [total, active, hot, cooling] = await Promise.all([
+    prisma.contact.count({ where: { orgId } }),
+    prisma.contact.count({ where: { orgId, lastInteractionAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } } }),
+    prisma.contact.count({ where: { orgId, priorityScore: { gt: 70 } } }),
+    prisma.contact.count({ where: { orgId, engagementPattern: { in: ['cooling', 'cold'] } } }),
+  ]);
+  return { totalContacts: total, activeContacts: active, hotCount: hot, coolingCount: cooling };
+}
+
+/**
+ * Apply CampaignPlan → tạo BroadcastJob (1 lần gửi).
+ */
+export async function applyCampaignPlan(input: { orgId: string; planId: string; userId: string }): Promise<{ jobId: string }> {
+  const planRow = await prisma.campaignPlan.findFirst({
+    where: { id: input.planId, orgId: input.orgId },
+  });
+  if (!planRow) throw new Error('plan_not_found');
+  if (planRow.appliedToJobId) {
+    return { jobId: planRow.appliedToJobId };
+  }
+  const plan = planRow.plan as unknown as CampaignPlan;
+  if (!plan.messages?.length) throw new Error('plan_no_messages');
+
+  // Tìm nick đầu tiên của org để gắn job (admin tự chỉnh sau)
+  const nick = await prisma.zaloAccount.findFirst({
+    where: { orgId: input.orgId, archivedAt: null },
+    select: { id: true },
+  });
+  if (!nick) throw new Error('no_active_nick');
+
+  const firstMsg = plan.messages[0];
+  const sendAt = new Date(plan.schedule.sendAtISO);
+
+  const job = await prisma.broadcastJob.create({
+    data: {
+      orgId: input.orgId,
+      createdById: input.userId,
+      name: `AI Plan: ${planRow.userGoal.slice(0, 30)}`,
+      sourceType: 'friends', // AI Plan default — user chỉnh sau
+      zaloAccountId: nick.id,
+      messageText: firstMsg.text,
+      scheduleType: 'once',
+      scheduledAt: sendAt,
+      timeOfDay: null,
+      daysOfWeek: [],
+      nextRunAt: computeNextRunAt({ scheduleType: 'once', scheduledAt: sendAt, timeOfDay: null, daysOfWeek: [] }),
+    },
+  });
+  await prisma.campaignPlan.update({
+    where: { id: planRow.id },
+    data: { appliedToJobId: job.id },
+  });
+  return { jobId: job.id };
+}

@@ -392,6 +392,9 @@
 
       <!-- ════════════════ TAB 3 — QUẢN LÝ HỆ THỐNG ════════════════ -->
       <div v-show="activeTab === 'system'" class="dh-tabpanel">
+        <!-- Sprint 3 R9 2026-07-21: Churn risk widget -->
+        <ChurnRiskWidget class="churn-widget-margin" />
+
         <div v-if="system?.recentAudit?.length" class="at-banner-audit">
           <ClipboardList :size="14" :stroke-width="2" />
           Audit gần nhất: <b>{{ system.recentAudit[0].actorName }}</b> — {{ system.recentAudit[0].action }} · {{ ago(system.recentAudit[0].createdAt) }}
@@ -454,6 +457,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, h, type Component } from 'vue';
 import { useAuthStore } from '@/stores/auth';
+// Sprint 3 R9 2026-07-21: Churn Risk Widget
+import ChurnRiskWidget from '@/components/dashboard/ChurnRiskWidget.vue';
 import { useRouter } from 'vue-router';
 import { useDashboardActionHub, type PrivacySplit } from '@/composables/use-dashboard-action-hub';
 import Avatar from '@/components/ui/Avatar.vue';

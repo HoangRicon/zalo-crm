@@ -108,6 +108,13 @@ export const config = {
   kimiAuthToken: envValue('KIMI_AUTH_TOKEN') || '',
   kimiDefaultMoonshotV1Model: envValue('KIMI_DEFAULT_MOONSHOT_V1_MODEL') || '',
 
+  /* --- Custom AI provider (2026-07-21) ---
+   * OpenAI-compatible endpoint mà user tự host (vLLM, LM Studio, Ollama, internal proxy…).
+   * Per-org config qua app_settings sẽ override 2 biến env dưới — xem provider-registry.ts. */
+  customBaseUrl: envValue('CUSTOM_BASE_URL') || '',
+  customAuthToken: envValue('CUSTOM_AUTH_TOKEN') || '',
+  customDefaultModel: envValue('CUSTOM_DEFAULT_MODEL') || '',
+
   isProduction: process.env.NODE_ENV === 'production',
 
   /**

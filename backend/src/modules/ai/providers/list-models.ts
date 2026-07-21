@@ -89,6 +89,12 @@ export async function listProviderModels(
     case 'gemini':
       models = await listGemini(baseUrl, apiKey);
       break;
+    case 'custom':
+      // 2026-07-21: Custom provider dùng OpenAI-compatible API → gọi /v1/models.
+      // Nếu provider không có endpoint này (vd Ollama cũ, llama.cpp), route trả {models:[], error}
+      // và UI cho phép gõ tay model name.
+      models = await listOpenaiCompat(baseUrl, apiKey, '/v1/models');
+      break;
     default:
       throw new Error(`Unknown provider: ${provider}`);
   }

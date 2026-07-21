@@ -7,6 +7,7 @@ import { getProviderConfig, getAvailableProviders, resolveProviderApiKey, getPro
 import { generateWithAnthropic } from './providers/anthropic.js';
 import { generateWithGemini } from './providers/gemini.js';
 import { generateWithOpenaiCompat } from './providers/openai-compat.js';
+import { generateWithCustom } from './providers/custom.js';
 import { buildReplyDraftPrompt } from './prompts/reply-draft.js';
 import { buildSummaryPrompt } from './prompts/summary.js';
 import { buildSentimentPrompt } from './prompts/sentiment.js';
@@ -115,6 +116,10 @@ export async function generateText(provider: string, apiKey: string, model: stri
   if (provider === 'openai') return generateWithOpenaiCompat(`${baseUrl}/v1/chat/completions`, apiKey, model, system, prompt, maxTokens, 'max_completion_tokens');
   if (provider === 'qwen') return generateWithOpenaiCompat(`${baseUrl}/compatible-mode/v1/chat/completions`, apiKey, model, system, prompt, maxTokens);
   if (provider === 'kimi') return generateWithOpenaiCompat(`${baseUrl}/v1/chat/completions`, apiKey, model, system, prompt, maxTokens);
+
+  // 2026-07-21: provider 'custom' — OpenAI-compat endpoint tự host (vLLM, Ollama, internal proxy...).
+  // baseUrl append `/v1/chat/completions` nếu chưa có path; handler tự xử lý.
+  if (provider === 'custom') return generateWithCustom(baseUrl, apiKey, model, system, prompt, maxTokens);
 
   throw new Error(`Unsupported AI provider: ${provider}`);
 }

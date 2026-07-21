@@ -64,7 +64,12 @@
             :counts="conversationCounts"
             :priority-has-unread="priorityHasUnread"
             @reselect-tab="onReselectActiveTab"
-          />
+          >
+            <!-- Sprint 6 R10 2026-07-21: Multi-channel inbox filter (zalo/fb/ig/sms/telegram). -->
+            <template #channel-filter>
+              <ChannelFilter v-model="channelFilter" />
+            </template>
+          </ConversationFilterBar>
         </template>
       </ConversationList>
     </div>
@@ -160,6 +165,8 @@ import { useWorkScope } from '@/composables/use-work-scope';
 import { shouldAdoptNickScope } from '@/composables/work-scope-logic';
 import MobileChatView from '@/views/MobileChatView.vue';
 import { useMobile } from '@/composables/use-mobile';
+// Sprint 6 R10 2026-07-21: Multi-channel inbox.
+import ChannelFilter from '@/components/chat/ChannelFilter.vue';
 
 const { isMobile } = useMobile();
 const route = useRoute();
@@ -361,7 +368,9 @@ const conversationCounts = computed(() => {
   return { unread, unanswered, stuck, ready, individual, group };
 });
 
-// Apply inbox filter state → extraFilters → refetch.
+// Sprint 6 R10 2026-07-21: Multi-channel inbox filter. 'all' = no filter (default).
+// Mapped to ?channel=zalo|facebook|instagram|sms ở fetchConversations thông qua extraFilters.
+const channelFilter = ref<string>('all');
 // Sync ngay extraFilters trên mount để first fetch dùng đúng default tab
 // (Cá nhân → threadType=user) thay vì load tất cả conv.
 extraFilters.value = inboxFilters.buildQueryParams();
@@ -418,11 +427,13 @@ watch(
     inboxFilters.state.appointmentOverdue,
     inboxFilters.state.engagementPatterns.join(','),
     inboxFilters.state.messageReplyState,
+    channelFilter,
   ],
   () => {
     if (filterApplyTimer) clearTimeout(filterApplyTimer);
     filterApplyTimer = setTimeout(() => {
       const params = inboxFilters.buildQueryParams();
+      params.channel = channelFilter.value === 'all' ? undefined : channelFilter.value;
       extraFilters.value = params;
       fetchConversations();
     }, 150);

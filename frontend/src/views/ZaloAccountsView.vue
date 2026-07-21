@@ -156,8 +156,9 @@
 
     <!-- Phase 4 2026-05-22: Owner reassign drawer -->
     <OwnerReassignDrawer
-      v-model="reassignOpen"
+      :model-value="reassignOpen"
       :account="reassignAccount"
+      @update:model-value="(v: boolean) => (reassignOpen = v)"
       @reassigned="onReassigned"
     />
 
@@ -174,14 +175,15 @@
         <div v-for="acc in enriched" :key="acc.id" class="za-blacklist-item">
           <div class="za-blacklist-meta">
             <strong>{{ acc.displayName || acc.phone || acc.id.slice(0, 8) }}</strong>
-            <span v-if="acc.broadcastBlacklisted && acc.broadcastBlacklistReason" class="za-blacklist-reason">
+            <span v-if="acc.broadcastBlacklisted === true && acc.broadcastBlacklistReason" class="za-blacklist-reason">
               "{{ acc.broadcastBlacklistReason }}"
             </span>
           </div>
           <BlacklistToggle
             :account-id="acc.id"
-            v-model="acc.broadcastBlacklisted"
+            :model-value="Boolean(acc.broadcastBlacklisted)"
             :model-reason="acc.broadcastBlacklistReason"
+            @update:model-value="onBlacklistChange(acc, $event)"
           />
         </div>
       </div>
@@ -214,10 +216,11 @@
 
     <!-- DETAIL DRAWER -->
     <AccountDetailDrawer
-      v-model="drawerOpen"
+      :model-value="drawerOpen"
       :account="drawerAccount"
       :uptime-cache="uptimeCache"
       :relative-time="relativeTime"
+      @update:model-value="(v: boolean) => (drawerOpen = v)"
       :status-label="statusLabel"
       :uptime-color="uptimeColor"
       :limit-for="limitFor"
@@ -239,7 +242,8 @@
     <!-- KẾT NỐI NICK — wizard 4 bước (Anh chốt 2026-06-09): SĐT→Check→xác nhận→QR→chúc mừng -->
     <ConnectNickWizard
       v-if="wizardOpen"
-      v-model:step="wizardStep"
+      :step="wizardStep"
+      @update:step="(v: number) => (wizardStep = v)"
       :qr-image="qrImage"
       :qr-scanned="qrScanned"
       :scanned-name="scannedName"
@@ -274,10 +278,10 @@
 
     <!-- ACCESS DIALOG (reuse existing) -->
     <ZaloAccessDialog
-      v-model="showAccessDialog"
+      :model-value="showAccessDialog"
       :account-id="accessTargetId"
       :account-name="accessTargetName"
-      @update:modelValue="onAccessDialogClose"
+      @update:model-value="(v: boolean) => (showAccessDialog = v)"
     />
   </div>
 </template>
@@ -383,6 +387,11 @@ const { confirm } = useConfirm();
 const reconnectingIds = ref<Set<string>>(new Set());
 // RBAC 2026-06-08 — quản lý nick + sửa liên lạc nội bộ của sale theo grants 'zalo_account.edit'
 // (owner/admin tự bypass). Thay cho check legacy role.
+// Bỏ void canManageZalo (template đã dùng).
+async function onBlacklistChange(acc: { id: string; broadcastBlacklisted?: boolean }, val: boolean) {
+  acc.broadcastBlacklisted = val;
+}
+// Sprint 2 R5 2026-07-21: BlacklistToggle uses `v-model` binding.
 const canManageZalo = computed(() => authStore.canAccess('zalo_account', 'edit'));
 // GỠ 2026-06-10 (CEO-review): bỏ 'internal-contact' khỏi tab hợp lệ — URL hack
 // ?tab=internal-contact sẽ rơi về 'manage'. Cơ chế setup thủ công đã gỡ.

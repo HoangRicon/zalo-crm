@@ -39,7 +39,7 @@ export async function backupRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // GET /api/v1/backup/download/:id — download file backup.
-  app.get<{ Params: { id: string } }>('/api/v1/backup/download/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get<{ Params: { id: string } }>('/api/v1/backup/download/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     if (!requireOwner(request, reply)) return;
     const file = await getBackupFile(request.user!.orgId, request.params.id);
     if (!file) return reply.status(404).send({ error: 'not_found' });

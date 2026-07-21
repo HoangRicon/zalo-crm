@@ -3,7 +3,7 @@
     <p class="hint">A/B test: chia đều KH cho {{ variantCount }} variants. Mỗi variant có messageText riêng.</p>
 
     <div class="variant-cards">
-      <div v-for="(v, i) in modelValue" :key="i" class="variant-card">
+      <div v-for="(_, i) in modelValue" :key="i" class="variant-card">
         <div class="variant-header">
           <span class="group-badge">{{ groupLetter(i) }}</span>
           <span class="variant-title">Variant {{ groupLetter(i) }}</span>

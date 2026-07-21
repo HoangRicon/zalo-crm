@@ -28,7 +28,7 @@ export async function scoreContactForChurn(orgId: string, contactId: string): Pr
   const lastAt = contact.lastInteractionAt?.getTime() ?? 0;
   const lastInteractionDays = lastAt > 0 ? Math.floor((now - lastAt) / (24 * 60 * 60 * 1000)) : 999;
 
-  // 2) Lấy 10 tin nhắn gần nhất (kèm sentiment nếu có)
+  // 2) Lấy 10 tin nhắn gần nhất
   const messages = await prisma.message.findMany({
     where: { conversation: { contactId, orgId } },
     orderBy: { sentAt: 'desc' },
@@ -37,7 +37,6 @@ export async function scoreContactForChurn(orgId: string, contactId: string): Pr
       senderType: true,
       content: true,
       sentAt: true,
-      sentimentScore: true,
     },
   });
   const formattedMessages = messages.reverse().map((m) => ({
@@ -45,10 +44,8 @@ export async function scoreContactForChurn(orgId: string, contactId: string): Pr
     text: m.content ?? '',
     sentAt: m.sentAt.toISOString(),
   }));
-  const sentiments = messages
-    .map((m) => m.sentimentScore)
-    .filter((s): s is number => typeof s === 'number');
-  const avgSentiment = sentiments.length ? sentiments.reduce((a, b) => a + b, 0) / sentiments.length : null;
+  const sentiments: number[] = []; // sentimentScore không có trên Message model, dùng rule-based.
+  const avgSentiment: number | null = sentiments.length ? sentiments.reduce((a, b) => a + b, 0) / sentiments.length : null;
 
   // 3) AI score
   const result = await scoreChurnForContact({

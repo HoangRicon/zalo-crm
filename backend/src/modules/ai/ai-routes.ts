@@ -356,7 +356,7 @@ export async function aiRoutes(app: FastifyInstance) {
 
   // ── Sprint 5 R11 2026-07-21: POST /ai/plan-campaign/:id/apply ────────────
   // Tạo BroadcastJob từ plan đã lưu.
-  app.post<{ Params: { id: string } }>('/api/v1/ai/plan-campaign/:id/apply', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post<{ Params: { id: string } }>('/api/v1/ai/plan-campaign/:id/apply', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     try {
       const { applyCampaignPlan } = await import('./ai-service.js');
       return await applyCampaignPlan({

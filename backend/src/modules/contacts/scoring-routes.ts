@@ -53,12 +53,13 @@ export async function scoringRoutes(app: FastifyInstance): Promise<void> {
         });
         if (!contact) return reply.status(404).send({ error: 'not_found' });
 
-        // Lấy activity log signals (category='score') trong N ngày
+        // Lấy activity log signals (category='score') trong N ngày.
+        // ActivityLog không có contactId trực tiếp → filter qua entityId == contact.id.
         const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
         const logs = await prisma.activityLog.findMany({
-          where: { orgId: user.orgId, contactId: contact.id, category: 'score', createdAt: { gte: since } },
+          where: { orgId: user.orgId, entityId: contact.id, category: 'score', createdAt: { gte: since } },
           orderBy: { createdAt: 'desc' },
-          select: { createdAt: true, metadata: true },
+          select: { createdAt: true, details: true },
         });
 
         // Tính trend: build day-by-day array, duyệt backward từ score hiện tại
@@ -70,7 +71,7 @@ export async function scoringRoutes(app: FastifyInstance): Promise<void> {
         // Tạo map date → list of deltas (delta là {signalKey, deltaValue, ts})
         const dailyDeltas = new Map<string, number>();
         for (const log of logs) {
-          const meta = (log.metadata as Record<string, unknown>) ?? {};
+          const meta = (log.details as Record<string, unknown>) ?? {};
           const signalKey = String(meta.signalKey ?? meta.kind ?? '');
           const delta = Number(meta.delta ?? 0);
           if (!signalKey || !delta) continue;
@@ -109,12 +110,12 @@ export async function scoringRoutes(app: FastifyInstance): Promise<void> {
         });
         if (!contact) return reply.status(404).send({ error: 'not_found' });
         const logs = await prisma.activityLog.findMany({
-          where: { orgId: user.orgId, contactId: contact.id, category: 'score' },
+          where: { orgId: user.orgId, entityId: contact.id, category: 'score' },
           orderBy: { createdAt: 'desc' },
           take: limit,
         });
         const signals = logs.map((l) => {
-          const meta = (l.metadata as Record<string, unknown>) ?? {};
+          const meta = (l.details as Record<string, unknown>) ?? {};
           return {
             signalKey: String(meta.signalKey ?? meta.kind ?? 'unknown'),
             dimension: String(meta.dimension ?? 'engagement'),

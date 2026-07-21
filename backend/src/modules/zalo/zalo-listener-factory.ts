@@ -749,12 +749,9 @@ export function attachZaloListener(ctx: ListenerContext): void {
           void notifyNewInboundMessage({
             orgId: result.orgId,
             conversationId: result.conversationId,
-            zaloAccountId: accountId,
-            privacyMode: accInfo?.privacyMode ?? 'sub',
-            ownerUserId: accInfo?.ownerUserId ?? null,
-            message: result.message,
-            senderName,
-          }).catch((err) =>
+            senderName: String((message as { dName?: string }).dName ?? senderName ?? 'Zalo'),
+            previewText: String((message as { content?: string }).content ?? ''),
+          }).catch((err: unknown) =>
             logger.error(`[zalo:${accountId}] push notify error:`, err),
           );
         }

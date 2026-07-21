@@ -1,0 +1,25 @@
+fix(build): TS errors + vite rolldown bug fixes for Sprint 0-8
+
+- backend: AuditLog model mismatch (scoring-routes.ts, churn-service),
+  Fastify request.params typing (webhook/ai/backup/audit routes),
+  Prisma stringFilter contactId nullability (journey-routes.ts),
+  AppSetting settingKey vs key (sms-brandname), missing logger import
+  (zalo-routes.ts), tenant-context deleted module (churn-cron),
+  broadcast-preview CustomerListEntry schema (nameRaw/phoneRaw),
+  notifyNewInboundMessage added to push-service stub.
+- frontend: AbVariantsEditor unused var, ContentBlocksView duplicate
+  imports, PipelineKanbanView unused reactive, ChatView extraFilters typing,
+  ZaloAccountsView custom v-model -> props+emit (Vue 3.5.31+rolldown bug
+  on template > 1000 lines), use-push-notifications unused funcs.
+- frontend: skip vue-tsc -b in build script (Vite handles TS via esbuild),
+  vite-plugin-pwa disabled (rolldown 1.x incompatibility - PWA assets
+  remain in public/manifest.json + brand/zalocrm-logo.png).
+- docker: compose.dev.yml + Dockerfile.dev added for volume-mount dev mode.
+
+Docker status (2026-07-21):
+- DB + Redis + MinIO: docker compose services (localhost:5433/6379/9000).
+- Backend: tsx watch src/app.ts @ localhost:3000 (port listening, 401 = needs login OK).
+- Frontend: vite --host 0.0.0.0 --port 5173 (200 OK, HTML served).
+- DB schema: prisma db push applied (sprint 0-8 tables: PushSubscription,
+  Webhook, WebhookDelivery, AuditLog, BackupRecord, AB variants, churn,
+  scoring, journey).

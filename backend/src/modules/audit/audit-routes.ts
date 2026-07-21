@@ -35,7 +35,7 @@ export async function auditRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // GET /api/v1/audit/:id — diff detail.
-  app.get<{ Params: { id: string } }>('/api/v1/audit/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get<{ Params: { id: string } }>('/api/v1/audit/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     if (!requireOwnerAdmin(request, reply)) return;
     const item = await getAuditLog(request.params.id);
     if (!item || item.orgId !== request.user!.orgId) {

@@ -101,3 +101,19 @@ export async function deleteSubscription(userId: string, endpoint: string): Prom
     where: { userId, endpoint },
   });
 }
+
+/**
+ * Notify user khi có tin nhắn mới từ Zalo (called from zalo-listener-factory).
+ * Phase 1: stub, chưa fire thật (cần npm i web-push).
+ */
+export async function notifyNewInboundMessage(args: {
+  orgId: string;
+  conversationId: string;
+  senderName: string;
+  previewText: string;
+}): Promise<void> {
+  if (!isPushConfigured()) return;
+  // Phase 2: resolve userId from conversationId → pushService.sendToUser.
+  // Hiện tại chỉ log để xác nhận flow.
+  logger.debug(`[push] (stub) notifyNewInboundMessage conv=${args.conversationId}`);
+}

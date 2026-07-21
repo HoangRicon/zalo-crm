@@ -11,7 +11,6 @@ import cron from 'node-cron';
 import { prisma } from '../../shared/database/prisma-client.js';
 import { logger } from '../../shared/utils/logger.js';
 import { scoreContactForChurn } from './churn-service.js';
-import { withTenant, runSystemQuery } from '../../shared/database/tenant-context.js';
 
 let running = false;
 
@@ -43,32 +42,28 @@ export async function runChurnScan(): Promise<{ scannedOrgs: number; scoredConta
   const since14d = new Date(now - 14 * 24 * 60 * 60 * 1000);
   const since90d = new Date(now - 90 * 24 * 60 * 60 * 1000);
 
-  const orgs = await runSystemQuery(() =>
-    prisma.organization.findMany({ select: { id: true } }),
-  );
+  const orgs = await prisma.organization.findMany({ select: { id: true } });
 
   let scoredContacts = 0;
   for (const org of orgs) {
-    await withTenant(org.id, async () => {
-      // Quét contact cooling/cold trong 14-90 ngày (KH active < 14d bỏ qua;
-      // KH > 90d đã rời bỏ thật, không cần churn risk nữa).
-      const contacts = await prisma.contact.findMany({
-        where: {
-          orgId: org.id,
-          engagementPattern: { in: ['cooling', 'cold'] },
-          lastInteractionAt: { gte: since90d, lte: since14d },
-        },
-        select: { id: true },
-      });
-      for (const c of contacts) {
-        try {
-          await scoreContactForChurn(org.id, c.id);
-          scoredContacts++;
-        } catch (err) {
-          logger.warn(`[churn-cron] org=${org.id} contact=${c.id} fail`, err);
-        }
-      }
+    // Quét contact cooling/cold trong 14-90 ngày (KH active < 14d bỏ qua;
+    // KH > 90d đã rời bỏ thật, không cần churn risk nữa).
+    const contacts = await prisma.contact.findMany({
+      where: {
+        orgId: org.id,
+        engagementPattern: { in: ['cooling', 'cold'] },
+        lastInteractionAt: { gte: since90d, lte: since14d },
+      },
+      select: { id: true },
     });
+    for (const c of contacts) {
+      try {
+        await scoreContactForChurn(org.id, c.id);
+        scoredContacts++;
+      } catch (err) {
+        logger.warn(`[churn-cron] org=${org.id} contact=${c.id} fail`, err);
+      }
+    }
   }
 
   logger.info(`[churn-cron] scanned ${orgs.length} orgs, scored ${scoredContacts} contacts`);

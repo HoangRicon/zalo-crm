@@ -11,6 +11,7 @@ import { zaloPool } from './zalo-pool.js';
 import { prisma, tenantTransaction } from '../../shared/database/prisma-client.js';
 import { decryptSessionData } from '../../shared/crypto/session-crypto.js';
 import { getZaloScope, canManageAccount, requireAccountManagement, requireAccountVisible } from './zalo-scope.js';
+import { logger } from '../../shared/utils/logger.js';
 
 export async function zaloRoutes(app: FastifyInstance): Promise<void> {
   // All routes in this plugin require auth

@@ -23,9 +23,9 @@ interface SmsConfig {
 
 async function getSmsConfig(orgId: string): Promise<SmsConfig | null> {
   const rows = await prisma.appSetting.findMany({
-    where: { orgId, key: { in: ['sms_api_url', 'sms_api_key', 'sms_sender', 'sms_provider'] } },
+    where: { orgId, settingKey: { in: ['sms_api_url', 'sms_api_key', 'sms_sender', 'sms_provider'] } },
   });
-  const map = new Map(rows.map((r) => [r.key, r.value]));
+  const map = new Map(rows.map((r) => [r.settingKey, r.valuePlain ?? '']));
   const apiUrl = String(map.get('sms_api_url') ?? '').trim();
   const apiKey = String(map.get('sms_api_key') ?? '').trim();
   const sender = String(map.get('sms_sender') ?? '').trim();

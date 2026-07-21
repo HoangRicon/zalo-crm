@@ -69,9 +69,9 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // PATCH /api/v1/webhooks/:id — update.
-  app.patch<{ Params: { id: string } }>('/api/v1/webhooks/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.patch<{ Params: { id: string }; Body: Partial<CreateBody> }>('/api/v1/webhooks/:id', async (request: FastifyRequest<{ Params: { id: string }; Body: Partial<CreateBody> }>, reply: FastifyReply) => {
     if (!requireOwnerAdmin(request, reply)) return;
-    const body = request.body as Partial<CreateBody>;
+    const body = request.body;
     const updated = await prisma.webhook.update({
       where: { id: request.params.id, orgId: request.user!.orgId },
       data: {
@@ -86,7 +86,7 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // DELETE /api/v1/webhooks/:id.
-  app.delete<{ Params: { id: string } }>('/api/v1/webhooks/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.delete<{ Params: { id: string } }>('/api/v1/webhooks/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     if (!requireOwnerAdmin(request, reply)) return;
     await prisma.webhook.delete({
       where: { id: request.params.id, orgId: request.user!.orgId },
@@ -95,7 +95,7 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // POST /api/v1/webhooks/:id/test — fire 1 dummy payload ngay lập tức.
-  app.post<{ Params: { id: string } }>('/api/v1/webhooks/:id/test', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post<{ Params: { id: string } }>('/api/v1/webhooks/:id/test', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     if (!requireOwnerAdmin(request, reply)) return;
     const w = await prisma.webhook.findFirst({
       where: { id: request.params.id, orgId: request.user!.orgId },
@@ -118,7 +118,7 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // GET /api/v1/webhooks/:id/deliveries — log.
-  app.get<{ Params: { id: string }; Querystring: { limit?: string } }>('/api/v1/webhooks/:id/deliveries', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get<{ Params: { id: string }; Querystring: { limit?: string } }>('/api/v1/webhooks/:id/deliveries', async (request: FastifyRequest<{ Params: { id: string }; Querystring: { limit?: string } }>, reply: FastifyReply) => {
     if (!requireOwnerAdmin(request, reply)) return;
     const limit = Math.min(200, Math.max(1, Number(request.query?.limit ?? 50)));
     const items = await prisma.webhookDelivery.findMany({

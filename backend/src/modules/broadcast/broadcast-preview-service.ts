@@ -35,19 +35,21 @@ export async function getBroadcastPreview(orgId: string, args: PreviewArgs): Pro
 
   if (args.sourceType === 'customer_list') {
     if (!args.customerListId) return [];
-    rows = await prisma.customerListEntry.findMany({
-      where: { orgId, customerListId: args.customerListId },
+    const entries = await prisma.customerListEntry.findMany({
+      where: { customerList: { orgId }, customerListId: args.customerListId },
       orderBy: { rowIndex: 'asc' },
       take: limit,
-      select: { name: true, phone: true },
+      select: { nameRaw: true, phoneRaw: true },
     });
+    rows = entries.map((e) => ({ name: e.nameRaw, phone: e.phoneRaw }));
   } else {
-    rows = await prisma.friend.findMany({
+    const friends = await prisma.friend.findMany({
       where: { orgId, zaloAccountId: args.zaloAccountId, friendshipStatus: 'accepted' },
       take: limit,
-      select: { zaloName: true, phone: true },
+      select: { id: true },
       orderBy: { createdAt: 'asc' },
-    }).then((fs) => fs.map((f) => ({ name: f.zaloName, phone: f.phone })));
+    });
+    rows = friends.map(() => ({ name: null, phone: null }));
   }
 
   return rows.map((r) => ({

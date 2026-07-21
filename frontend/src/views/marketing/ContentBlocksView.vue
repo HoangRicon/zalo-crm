@@ -121,15 +121,12 @@ import { onMounted, reactive, ref } from 'vue';
 import { api } from '@/api/index';
 import AiSuggestModal from '@/components/marketing/AiSuggestModal.vue';
 import { useToast } from '@/composables/use-toast';
-
-const { push: toast } = useToast();
-const showAiSuggest = ref(false);
 import { listMedia, type MediaAssetItem } from '@/api/media';
-import { useToast } from '@/composables/use-toast';
 import { useConfirm } from '@/composables/use-confirm';
 
 const { push: toast } = useToast();
 const { confirm } = useConfirm();
+const showAiSuggest = ref(false);
 
 interface BlockRow {
   id: string; name: string; messageText: string; imageUrl: string | null; usageCount: number;

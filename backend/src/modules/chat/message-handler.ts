@@ -274,7 +274,9 @@ export async function handleIncomingMessage(
       where: { id: msg.accountId },
       // 2026-06-03 — fix M11 writer: thêm displayName + owner.fullName để
       // set Source Badge "👤 Sale CRM · {tên} 🔄" cho tin sync từ Zalo Real.
+      // Sprint 7 R12 2026-07-21: thêm id để broadcast reply tracking có thể lookup theo nick.
       select: {
+        id: true,
         orgId: true,
         ownerUserId: true,
         displayName: true,

@@ -349,8 +349,8 @@ async function bootstrap() {
   const { churnRoutes } = await import('./modules/churn-risk/churn-routes.js');
   await app.register(churnRoutes);
   // Sprint 3 R6 + Sprint 4 R7 2026-07-21: Scoring visualizer + Journey funnel
-  const { scoringRoutes } = await import('./modules/contacts/scoring-routes.js');
-  await app.register(scoringRoutes);
+  const { scoringRoutes: contactScoringRoutes } = await import('./modules/contacts/scoring-routes.js');
+  await app.register(contactScoringRoutes);
   const { journeyRoutes } = await import('./modules/reports/journey-routes.js');
   await app.register(journeyRoutes);
   // Sprint 6 R10 2026-07-21: Facebook webhook (multi-channel inbox)

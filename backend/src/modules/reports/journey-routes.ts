@@ -65,14 +65,16 @@ export async function journeyRoutes(app: FastifyInstance): Promise<void> {
         // Stage 1 — first_contact: tất cả contacts created trong window
         const firstContactCount = contacts.length;
         // Stage 2 — friend_accept: contacts có Friend với friendshipStatus='accepted'
-        const acceptedIds = await prisma.friend.findMany({
-          where: { orgId: user.orgId, friendshipStatus: 'accepted', contactId: { not: null } },
+        // Prisma StringFilter không cho phép `not: null`; lấy all rồi filter trong JS.
+        const acceptedIdsRaw = await prisma.friend.findMany({
+          where: { orgId: user.orgId, friendshipStatus: 'accepted' },
           select: { contactId: true, createdAt: true },
-        });
-        const acceptedSet = new Set(acceptedIds.map((f) => f.contactId).filter((x): x is string => !!x));
+        }).catch(() => [] as Array<{ contactId: string | null; createdAt: Date }>);
+        const acceptedIds = acceptedIdsRaw.filter((f): f is { contactId: string; createdAt: Date } => !!f.contactId);
+        const acceptedSet = new Set(acceptedIds.map((f) => f.contactId));
         // Stage 3 — first_reply: contacts có inbound message
         const repliedContactIds = await prisma.message.findMany({
-          where: { conversation: { orgId: user.orgId, contactId: { not: null } }, senderType: 'contact' },
+          where: { conversation: { orgId: user.orgId }, senderType: 'contact' },
           distinct: ['conversationId'],
           select: { conversation: { select: { contactId: true } } },
         });
@@ -138,13 +140,13 @@ export async function journeyRoutes(app: FastifyInstance): Promise<void> {
         // Build sets giống trên
         const acceptedSet = new Set(
           (await prisma.friend.findMany({
-            where: { orgId: user.orgId, friendshipStatus: 'accepted', contactId: { not: null } },
+            where: { orgId: user.orgId, friendshipStatus: 'accepted' },
             select: { contactId: true },
-          })).map((f) => f.contactId).filter((x): x is string => !!x),
+          }).catch(() => [] as Array<{ contactId: string | null }>)).map((f) => f.contactId).filter((x): x is string => !!x),
         );
         const repliedSet = new Set(
           (await prisma.message.findMany({
-            where: { conversation: { orgId: user.orgId, contactId: { not: null } }, senderType: 'contact' },
+            where: { conversation: { orgId: user.orgId }, senderType: 'contact' },
             distinct: ['conversationId'],
             select: { conversation: { select: { contactId: true } } },
           })).map((m) => m.conversation?.contactId).filter((x): x is string => !!x),

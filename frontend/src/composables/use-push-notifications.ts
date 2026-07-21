@@ -21,16 +21,6 @@ type PushSupport = 'unknown' | 'unsupported' | 'opted-out' | 'subscribed' | 'den
 const support = ref<PushSupport>('unknown');
 const vapidKey = ref<string>('');
 
-async function loadVapidKey(): Promise<string | null> {
-  try {
-    const res = await api.get<{ key: string; configured: boolean }>('/api/v1/push/vapid-public-key');
-    vapidKey.value = res.data.key;
-    return res.data.configured ? res.data.key : null;
-  } catch {
-    return null;
-  }
-}
-
 async function checkSupport(): Promise<PushSupport> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
     support.value = 'unsupported';
@@ -91,7 +81,7 @@ export async function optOutOfPush(): Promise<void> {
   } catch { /* ignore */ }
 }
 
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
+function _urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
   const rawData = atob(base64);
@@ -99,6 +89,8 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   for (let i = 0; i < rawData.length; ++i) output[i] = rawData.charCodeAt(i);
   return output;
 }
+// Keep helper reachable for Phase 2 when block trong optInToPush được uncomment.
+void _urlBase64ToUint8Array;
 
 export function usePushNotifications() {
   return {

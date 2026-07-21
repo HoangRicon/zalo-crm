@@ -1,32 +1,105 @@
 version: "3.8"
 
-# Development-only compose: starts only the database.
-# Run the backend with: cd backend && npm run dev
+# docker-compose.dev.yml — Sprint 7+8 (2026-07-21) dev mode.
+# Volume mount source + hot reload. Dùng khi docker-compose.yml build fail do
+# Vue 3.5.31 + Vite 8 compile bug ở file template lớn.
 
 services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev
+    container_name: zalo-crm-dev
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3080}:3000"
+      - "${VITE_DEV_PORT:-5173}:5173"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://${DB_USER:-crmuser}:${DB_PASSWORD}@db:5432/${DB_NAME:-zalocrm}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - TZ=Asia/Ho_Chi_Minh
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - file_storage:/var/lib/zalo-crm/files
+      # Mount source để hot reload (sprint 7+8 dev)
+      - ./backend:/app/backend
+      - ./frontend/src:/app/frontend/src
+      - ./frontend/public:/app/frontend/public
+      - ./frontend/vite.config.ts:/app/frontend/vite.config.ts
+      - ./frontend/index.html:/app/frontend/index.html
+    tmpfs:
+      - /tmp
+
   db:
     image: postgres:16-alpine
-    container_name: zalo-crm-db-dev
+    container_name: zalo-crm-db
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: crmuser
-      POSTGRES_PASSWORD: devpassword
-      POSTGRES_DB: zalocrm
+      POSTGRES_USER: ${DB_USER:-crmuser}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-zalocrm}
       TZ: Asia/Ho_Chi_Minh
-    # Cùng quy ước với prod: log giờ VN, NHƯNG timezone=UTC để @default(now()) lưu UTC
-    # (Prisma đọc cột timestamp như UTC — đổi sang ICT sẽ lệch +7h).
-    command: >
-      postgres
-      -c timezone=UTC
-      -c log_timezone=Asia/Ho_Chi_Minh
-    ports:
-      - "5433:5432"
     volumes:
-      - pg_data_dev:/var/lib/postgresql/data
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${DB_PORT:-5433}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U crmuser"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-crmuser}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: zalo-crm-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 256mb
+      --maxmemory-policy noeviction
+    volumes:
+      - redis_data:/data
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
       timeout: 3s
       retries: 3
 
+  minio:
+    image: minio/minio:latest
+    container_name: zalo-crm-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER:     "${MINIO_ROOT_USER:?MINIO_ROOT_USER must be set in .env}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set in .env}"
+      TZ: Asia/Ho_Chi_Minh
+    volumes:
+      - minio_data:/data
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
 volumes:
-  pg_data_dev:
+  pg_data:
+  file_storage:
+  redis_data:
+  minio_data:

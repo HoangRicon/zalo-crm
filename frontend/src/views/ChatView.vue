@@ -471,8 +471,9 @@ watch(
   () => {
     if (filterApplyTimer) clearTimeout(filterApplyTimer);
     filterApplyTimer = setTimeout(() => {
-      const params = inboxFilters.buildQueryParams();
-      params.channel = channelFilter.value === 'all' ? undefined : channelFilter.value;
+      const params: Record<string, string> = { ...(inboxFilters.buildQueryParams() as Record<string, string>) };
+      if (channelFilter.value !== 'all') params.channel = channelFilter.value;
+      else delete params.channel;
       extraFilters.value = params;
       fetchConversations();
     }, 150);

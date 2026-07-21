@@ -1,0 +1,47 @@
+# Sprint 7+8 dev Dockerfile (2026-07-21).
+# Setup TS for backend (tsx watch) + Vite dev cho frontend trong cùng container.
+# Volume mount từ docker-compose.dev.yml cho phép edit ngoài mà không cần rebuild image.
+FROM node:20-alpine
+
+RUN apk add --no-cache tini ffmpeg tzdata vips python3 build-base
+ENV TZ=Asia/Ho_Chi_Minh
+
+WORKDIR /app
+
+# Install backend deps
+COPY backend/package.json backend/package-lock.json* ./backend/
+RUN cd backend && npm install --no-audit --no-fund
+
+# Install frontend deps
+COPY frontend/package.json frontend/package-lock.json* ./frontend/
+RUN cd frontend && npm install --legacy-peer-deps --no-audit --no-fund
+
+# Generate Prisma client
+COPY backend/prisma ./backend/prisma
+RUN cd backend && DATABASE_URL="postgresql://build:build@localhost:5432/build" npx prisma generate
+
+# Copy source (will be overridden by volume mounts in dev mode)
+COPY backend ./backend
+COPY frontend ./frontend
+
+# Install concurrently globally
+RUN npm install -g concurrently tsx --no-audit --no-fund
+
+EXPOSE 3000 5173
+
+# Entrypoint script chạy trong /app để đảm bảo concurrently spawn đúng cwd.
+RUN printf '%s\n' \
+    '#!/bin/sh' \
+    'set -e' \
+    'cd /app/backend' \
+    'echo "[init] WORKDIR=$(pwd)"' \
+    'echo "[init] Applying Prisma schema (db push)..."' \
+    'DATABASE_URL="$DATABASE_URL" npx prisma db push --schema=prisma/schema.prisma --accept-data-loss 2>&1 | tail -3 || echo "[init] Prisma push failed but continuing (dev only)"' \
+    'cd /app' \
+    'exec concurrently --names "BACKEND,FRONTEND" -c "blue,green" ' \
+    '  "cd /app/backend && npx tsx watch src/app.ts" ' \
+    '  "cd /app/frontend && npx vite --host 0.0.0.0 --port 5173"' \
+    > /entrypoint.sh && chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["/entrypoint.sh"]

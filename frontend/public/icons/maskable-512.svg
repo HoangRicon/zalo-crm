@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Maskable: ph£i có safe-zone 80px °Ýng kính ngoài. Logo n±m trong vòng tròn 408px. -->
+  <rect width="512" height="512" fill="#1f6feb"/>
+  <circle cx="256" cy="256" r="160" fill="#fff"/>
+  <text x="256" y="290" text-anchor="middle" font-family="system-ui" font-size="180" font-weight="700" fill="#1f6feb">Z</text>
+</svg>

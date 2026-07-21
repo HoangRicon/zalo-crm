@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="64" fill="#1f6feb"/>
+  <text x="256" y="350" text-anchor="middle" font-family="system-ui" font-size="320" font-weight="700" fill="#fff">Z</text>
+  <text x="256" y="430" text-anchor="middle" font-family="system-ui" font-size="56" font-weight="500" fill="#cbd5e1">CRM</text>
+</svg>

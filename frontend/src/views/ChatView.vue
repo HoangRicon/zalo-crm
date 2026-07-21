@@ -27,6 +27,18 @@
         <span class="dot" />
         Mất kết nối realtime — đang thử kết nối lại...
       </div>
+      <!-- Sprint 7 R12 2026-07-21: PWA offline banner (browser-level, không phụ thuộc socket). -->
+      <div v-if="!isOnline" class="pwa-offline-banner">
+        <v-icon size="16">mdi-wifi-off</v-icon>
+        Đang offline — đang hiển thị dữ liệu cũ, kết nối lại để cập nhật
+      </div>
+      <!-- Sprint 7 R12 2026-07-21: PWA push opt-in banner. Show 1 lần nếu supported + chưa sub. -->
+      <div v-if="showPushOptIn" class="pwa-push-banner" @click="onOptInPush">
+        <v-icon size="16">mdi-bell-ring-outline</v-icon>
+        <span class="flex-1">Bật thông báo để nhận tin nhắn mới khi không mở app?</span>
+        <button class="pwa-push-btn" @click.stop="onOptInPush">Bật</button>
+        <button class="pwa-push-close" @click.stop="dismissPushBanner" aria-label="Đóng">×</button>
+      </div>
       <!-- work-scope 2026-06-15 — 1 DÒNG tóm tắt "N tin ở M nick khác" (anh chốt: gọn,
            không liệt kê từng nick, icon hệ thống không emoji). Ẩn khi không có tin.
            Bấm → về "Toàn bộ" (xem tất cả nick) + reload. Chỉ đếm nick CÓ QUYỀN. -->
@@ -366,6 +378,33 @@ const conversationCounts = computed(() => {
     else if (c.threadType === 'group') group++;
   }
   return { unread, unanswered, stuck, ready, individual, group };
+});
+
+// Sprint 7 R12 2026-07-21: PWA offline status + push opt-in banner.
+import { useOnlineStatus } from '@/composables/use-online-status';
+import { usePushNotifications } from '@/composables/use-push-notifications';
+const { isOnline } = useOnlineStatus();
+const { support: pushSupport, optIn: optInPush, checkSupport: checkPushSupport } = usePushNotifications();
+const pushDismissed = ref(typeof localStorage !== 'undefined' && localStorage.getItem('pwa.push.dismissed') === '1');
+const showPushOptIn = computed(() => {
+  if (pushDismissed.value) return false;
+  return pushSupport.value === 'opted-out';
+});
+
+async function onOptInPush() {
+  const res = await optInPush();
+  if (!res.ok && res.reason !== 'pwa_sw_not_built_yet') {
+    console.warn('[push] optIn failed:', res.reason);
+  }
+}
+
+function dismissPushBanner() {
+  pushDismissed.value = true;
+  if (typeof localStorage !== 'undefined') localStorage.setItem('pwa.push.dismissed', '1');
+}
+
+onMounted(() => {
+  void checkPushSupport();
 });
 
 // Sprint 6 R10 2026-07-21: Multi-channel inbox filter. 'all' = no filter (default).
@@ -803,6 +842,47 @@ watch(searchQuery, () => {
 .out-of-scope-bar:hover { background: #dbeafe; }
 .out-of-scope-bar .oos-icon { color: #1e40af; }
 .out-of-scope-bar .oos-text { line-height: 1.2; }
+
+/* Sprint 7 R12 2026-07-21: PWA banners (offline + push opt-in). */
+.pwa-offline-banner {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  font-size: 12px;
+  background: #fef3c7;
+  color: #92400e;
+  border-bottom: 1px solid #fcd34d;
+}
+.pwa-push-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  background: #dbeafe;
+  color: #1e40af;
+  border-bottom: 1px solid #93c5fd;
+}
+.pwa-push-banner .flex-1 { flex: 1; }
+.pwa-push-btn {
+  background: #1f6feb;
+  color: #fff;
+  border: 0;
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.pwa-push-close {
+  background: transparent;
+  border: 0;
+  color: #1e40af;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
 
 /* FIX socket-chết v2 — banner mất kết nối realtime ở đầu cột 2 */
 .realtime-offline-banner {

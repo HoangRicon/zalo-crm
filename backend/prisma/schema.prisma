@@ -3844,6 +3844,99 @@ model TiktokAdvertiserConnection {
   @@map("tiktok_advertiser_connections")
 }
 
+// Sprint 7 R12 2026-07-21: PWA push subscriptions (per user per browser).
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  orgId     String   @map("org_id")
+  endpoint  String   @db.Text
+  p256dh    String
+  auth      String
+  userAgent String?  @map("user_agent") @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  lastSeen  DateTime? @map("last_seen")
+
+  @@unique([userId, endpoint])
+  @@index([orgId])
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+// Sprint 8 R13 2026-07-21: Outbound webhook subscriptions.
+model Webhook {
+  id        String   @id @default(uuid())
+  orgId     String   @map("org_id")
+  url       String   @db.Text
+  events    String[]
+  secret    String?  @db.Text
+  active    Boolean  @default(true)
+  createdBy String   @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  deliveries WebhookDelivery[]
+
+  @@index([orgId, active])
+  @@map("webhooks")
+}
+
+model WebhookDelivery {
+  id            String    @id @default(uuid())
+  webhookId     String    @map("webhook_id")
+  event         String
+  payload       Json
+  attempt       Int       @default(0)
+  status        String    @default("pending")
+  httpStatus    Int?      @map("http_status")
+  responseBody  String?   @map("response_body") @db.Text
+  nextAttemptAt DateTime? @map("next_attempt_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId, createdAt])
+  @@index([status, nextAttemptAt])
+  @@map("webhook_deliveries")
+}
+
+// Sprint 8 R13 2026-07-21: Audit log with before/after diff + filter.
+model AuditLog {
+  id        String   @id @default(uuid())
+  orgId     String   @map("org_id")
+  actorId   String?  @map("actor_id")
+  action    String
+  entity    String
+  entityId  String   @map("entity_id")
+  before    Json?
+  after     Json?
+  ip        String?
+  userAgent String?  @map("user_agent") @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([orgId, createdAt])
+  @@index([entity, entityId])
+  @@index([actorId, createdAt])
+  @@map("audit_logs")
+}
+
+// Sprint 8 R13 2026-07-21: Backup records (export history).
+model BackupRecord {
+  id            String   @id @default(uuid())
+  orgId         String   @map("org_id")
+  createdBy     String   @map("created_by")
+  schemaVersion Int      @map("schema_version")
+  counts        Json
+  sizeBytes     Int      @map("size_bytes")
+  filename      String   @db.Text
+  storageKey    String   @map("storage_key") @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([orgId, createdAt])
+  @@map("backup_records")
+}
+
 model ZaloOaConnection {
   id              String    @id @default(cuid())
   orgId           String    @map("org_id")

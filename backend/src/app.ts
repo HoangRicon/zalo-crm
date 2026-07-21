@@ -356,6 +356,11 @@ async function bootstrap() {
   // Sprint 6 R10 2026-07-21: Facebook webhook (multi-channel inbox)
   const { facebookWebhookRoutes } = await import('./modules/webhooks/facebook-webhook-route.js');
   await app.register(facebookWebhookRoutes);
+  // Sprint 7 R12 2026-07-21: PWA push notifications.
+  const { pushRoutes } = await import('./modules/push/push-routes.js');
+  await app.register(pushRoutes);
+  const { startPushCleanupCron } = await import('./modules/push/push-cron.js');
+  startPushCleanupCron();
 
   // Open-core: extension route registrations (no-op in Community edition).
   await ee?.registerExtensionRoutes?.(app);

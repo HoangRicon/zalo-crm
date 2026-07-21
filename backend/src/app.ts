@@ -361,6 +361,15 @@ async function bootstrap() {
   await app.register(pushRoutes);
   const { startPushCleanupCron } = await import('./modules/push/push-cron.js');
   startPushCleanupCron();
+  // Sprint 8 R13 2026-07-21: Outbound webhooks + audit log + backup/restore.
+  const { webhookRoutes } = await import('./modules/webhooks/webhook-routes.js');
+  await app.register(webhookRoutes);
+  const { startWebhookCron } = await import('./modules/webhooks/webhook-cron.js');
+  startWebhookCron();
+  const { auditRoutes } = await import('./modules/audit/audit-routes.js');
+  await app.register(auditRoutes);
+  const { backupRoutes } = await import('./modules/backup/backup-routes.js');
+  await app.register(backupRoutes);
 
   // Open-core: extension route registrations (no-op in Community edition).
   await ee?.registerExtensionRoutes?.(app);

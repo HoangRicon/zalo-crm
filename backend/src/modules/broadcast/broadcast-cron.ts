@@ -48,12 +48,23 @@ export async function runBroadcastTick(io: Server | null): Promise<void> {
   const dueJobs = await runSystemQuery(() =>
     prisma.broadcastJob.findMany({
       where: { status: 'active', nextRunAt: { lte: now } },
-      select: { id: true, orgId: true, scheduleType: true, scheduledAt: true, timeOfDay: true, daysOfWeek: true },
+      select: { id: true, orgId: true, scheduleType: true, scheduledAt: true, timeOfDay: true, daysOfWeek: true, zaloAccountId: true },
     }),
   );
 
   for (const job of dueJobs) {
     await withTenant(job.orgId, async () => {
+      // Sprint 2 R4 2026-07-21: SKIP job nếu nick Zalo bị blacklist broadcast.
+      // Job.status vẫn 'active' để admin re-enable nick → cron tự chạy tick sau.
+      const nick = await prisma.zaloAccount.findFirst({
+        where: { id: job.zaloAccountId },
+        select: { broadcastBlacklisted: true, broadcastBlacklistReason: true },
+      });
+      if (nick?.broadcastBlacklisted) {
+        logger.warn(`[broadcast-cron] skip job=${job.id} reason=account_blacklisted reason_note=${nick.broadcastBlacklistReason ?? ''}`);
+        return;
+      }
+
       const hasRunning = await prisma.broadcastRun.findFirst({
         where: { jobId: job.id, status: 'running' }, select: { id: true },
       });
@@ -90,6 +101,29 @@ export async function runBroadcastTick(io: Server | null): Promise<void> {
 }
 
 type RunRow = { id: string; orgId: string; jobId: string; lastSentAt: Date | null; sentCount: number; failedCount: number; skippedCount: number };
+
+/**
+ * Sprint 2 R4 2026-07-21: assign A/B group cho recipient dựa trên deterministic hash.
+ * - jobAbVariantCount = 2 → 'A' hoặc 'B'
+ * - jobAbVariantCount = 3 → 'A', 'B' hoặc 'C'
+ * - null → null (job không phải A/B)
+ *
+ * Dùng hash(entryId + runId) để deterministic: cùng (entryId, runId) → cùng group.
+ * Phân bố ~đều vì hash ngẫu nhiên đủ tốt (CyRB32 → 32-bit space).
+ */
+function assignAbGroup(jobAbVariantCount: number | null | undefined, entryId: string, runId: string): 'A' | 'B' | 'C' | null {
+  if (!jobAbVariantCount || jobAbVariantCount < 2 || jobAbVariantCount > 3) return null;
+  // Simple FNV-1a hash (32-bit) — đủ để random phân bố, không cần crypto
+  let hash = 0x811c9dc5;
+  const s = `${entryId}|${runId}`;
+  for (let i = 0; i < s.length; i++) {
+    hash ^= s.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  // Unsigned 32-bit → mod variantCount → index
+  const idx = (hash >>> 0) % jobAbVariantCount;
+  return (['A', 'B', 'C'] as const)[idx];
+}
 
 async function processRun(run: RunRow, io: Server | null): Promise<void> {
   const job = await prisma.broadcastJob.findUnique({ where: { id: run.jobId } });
@@ -143,8 +177,10 @@ async function processRun(run: RunRow, io: Server | null): Promise<void> {
   // viễn — trade-off at-most-once (thà thiếu 1 tin còn hơn gửi trùng); cần sweeper reclaim nếu muốn.
   let itemId: string;
   try {
+    // Sprint 2 R4: gán abGroupId nếu job là A/B.
+    const abGroupId = job.abMode === 'ab_split' ? assignAbGroup(job.abVariantCount, entryId, run.id) : null;
     const item = await prisma.broadcastRunItem.create({
-      data: { runId: run.id, orgId: run.orgId, entryId, phone: phone ?? '', name, status: 'sending' },
+      data: { runId: run.id, orgId: run.orgId, entryId, phone: phone ?? '', name, status: 'sending', abGroupId },
       select: { id: true },
     });
     itemId = item.id;

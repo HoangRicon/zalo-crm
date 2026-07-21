@@ -163,6 +163,30 @@
 
     </template>
 
+    <!-- Sprint 2 R4 2026-07-21: Blacklist section cho broadcast -->
+    <section class="za-card" style="margin-top:16px">
+      <div class="za-card-header">
+        <h2>🚫 Blacklist broadcast</h2>
+        <span class="za-card-sub">Nick bị blacklist sẽ bị cron broadcast skip. Job vẫn ở trạng thái 'active' — re-enable nick sẽ tự chạy lại.</span>
+      </div>
+      <div v-if="!enriched.length" class="za-empty">Chưa có nick nào.</div>
+      <div v-else class="za-blacklist-list">
+        <div v-for="acc in enriched" :key="acc.id" class="za-blacklist-item">
+          <div class="za-blacklist-meta">
+            <strong>{{ acc.displayName || acc.phone || acc.id.slice(0, 8) }}</strong>
+            <span v-if="acc.broadcastBlacklisted && acc.broadcastBlacklistReason" class="za-blacklist-reason">
+              "{{ acc.broadcastBlacklistReason }}"
+            </span>
+          </div>
+          <BlacklistToggle
+            :account-id="acc.id"
+            v-model="acc.broadcastBlacklisted"
+            :model-reason="acc.broadcastBlacklistReason"
+          />
+        </div>
+      </div>
+    </section>
+
     <!-- Tab content: privacy (Phase Privacy v2 2026-05-23) -->
     <template v-else-if="activeTab === 'privacy'">
       <PrivacyNicksTab />
@@ -271,6 +295,8 @@ import OwnerReassignDrawer from '@/components/zalo-accounts/OwnerReassignDrawer.
 import NickGridCards from '@/components/zalo-accounts/NickGridCards.vue';
 import ConnectNickWizard from '@/components/zalo-accounts/ConnectNickWizard.vue';
 import PrivacyNicksTab from '@/components/zalo-accounts/PrivacyNicksTab.vue';
+// Sprint 2 R4 2026-07-21: Blacklist toggle cho broadcast.
+import BlacklistToggle from '@/components/marketing/BlacklistToggle.vue';
 // Open-core: edition flag (true in Extension, false in Community). Privacy code
 // stays in the Community source — only the tab is hidden via this flag.
 import { isExtension } from '@ee/edition';

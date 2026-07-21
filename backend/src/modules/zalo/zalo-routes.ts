@@ -515,6 +515,35 @@ export async function zaloRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
+  // ── Sprint 2 R4 2026-07-21: PUT /api/v1/zalo-accounts/:id/broadcast-blacklist ──
+  // Toggle ON/OFF blacklist cho broadcast. Owner/admin only.
+  app.put<{ Params: { id: string }; Body: { blacklisted: boolean; reason?: string | null } }>(
+    '/api/v1/zalo-accounts/:id/broadcast-blacklist',
+    async (request, reply) => {
+      const user = request.user!;
+      if (user.role !== 'admin' && user.role !== 'owner') {
+        return reply.status(403).send({ error: 'forbidden' });
+      }
+      const account = await prisma.zaloAccount.findFirst({
+        where: { id: request.params.id, orgId: user.orgId },
+        select: { id: true },
+      });
+      if (!account) return reply.status(404).send({ error: 'not_found' });
+      const { blacklisted, reason } = request.body ?? {};
+      if (typeof blacklisted !== 'boolean') {
+        return reply.status(400).send({ error: 'blacklisted_required' });
+      }
+      // reason giới hạn 200 chars
+      const cleanReason = (reason ?? '').toString().slice(0, 200).trim() || null;
+      await prisma.zaloAccount.update({
+        where: { id: account.id },
+        data: { broadcastBlacklisted: blacklisted, broadcastBlacklistReason: blacklisted ? cleanReason : null },
+      });
+      logger.info(`[broadcast-blacklist] account=${account.id} blacklisted=${blacklisted} reason=${cleanReason ?? ''}`);
+      return { ok: true, broadcastBlacklisted: blacklisted, broadcastBlacklistReason: cleanReason };
+    },
+  );
+
   // PUT /api/v1/zalo-accounts/:id/phone — sửa SĐT THỦ CÔNG cho nick (anh hỏi 2026-06-21:
   // nick nhập trước chưa xác minh SĐT → bổ sung sau). Verify trùng Zalo/tên trước khi lưu:
   //   • khớp UID (nick đã login + uid của SĐT trùng) HOẶC khớp TÊN → lưu (đã xác minh).

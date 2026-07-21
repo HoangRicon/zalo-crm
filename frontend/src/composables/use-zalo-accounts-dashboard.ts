@@ -44,6 +44,9 @@ export interface EnrichedAccount {
   isOwnedByMe: boolean;
   /** Privacy mode của nick — 'main' = bật riêng tư, 'sub' = công khai */
   privacyMode?: 'main' | 'sub';
+  // Sprint 2 R4 2026-07-21: Blacklist broadcast.
+  broadcastBlacklisted?: boolean;
+  broadcastBlacklistReason?: string | null;
   crew: CrewMember[];
   crewCount: number;
   msgToday: number;

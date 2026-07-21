@@ -749,6 +749,41 @@ export async function handleIncomingMessage(
       })();
     }
 
+    // ── Sprint 2 R4 2026-07-21: Reply tracking cho Broadcast ──
+    // Khi KH inbound message vào conversation có nick = zaloAccountId gửi broadcast:
+    // tìm BroadcastRunItem chưa reply trong 7 ngày → set repliedAt + replyMessageId.
+    // Fire-and-forget: không block message handler nếu DB lỗi.
+    if (!msg.isSelf && msg.senderUid && account.id) {
+      void (async () => {
+        try {
+          const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+          const since = new Date(Date.now() - SEVEN_DAYS_MS);
+          // Tìm BroadcastRunItem của KH này (zaloUid) trong org, gửi từ account này,
+          // trong window 7 ngày, status='sent', repliedAt=null.
+          // Update first matching item (repliedAt set 1 lần duy nhất).
+          const updated = await prisma.broadcastRunItem.updateMany({
+            where: {
+              orgId: account.orgId,
+              zaloUid: msg.senderUid,
+              status: 'sent',
+              repliedAt: null,
+              createdAt: { gte: since },
+              run: { job: { zaloAccountId: account.id } },
+            },
+            data: { repliedAt: new Date(), replyMessageId: message.id },
+          });
+          if (updated.count > 0) {
+            // Invalidate heatmap cache cho org
+            const { invalidateHeatmapCache } = await import('../broadcast/broadcast-heatmap-service.js');
+            invalidateHeatmapCache(account.orgId);
+            logger.info(`[broadcast-reply] org=${account.orgId} senderUid=${msg.senderUid} marked ${updated.count} item(s) as replied`);
+          }
+        } catch (err) {
+          logger.warn('[broadcast-reply] hook error:', err);
+        }
+      })();
+    }
+
     // ── Fix 2026-06-03 (Anh báo): socket realtime thiếu senderResolved ──
     // Trước fix: socket emit chỉ có message raw (senderName, senderUid) →
     // FE pill tím KHÔNG render → đợi reload page mới gọi GET /messages có

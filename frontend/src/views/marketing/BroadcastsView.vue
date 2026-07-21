@@ -23,6 +23,8 @@
     </div>
 
     <div class="bc-body">
+      <HeatmapWidget :days="30" class="heatmap-container" />
+
       <div v-if="loading" class="bc-empty">Đang tải…</div>
       <div v-else-if="jobs.length === 0" class="bc-empty">
         <v-icon size="40">mdi-bullhorn-outline</v-icon>
@@ -179,6 +181,19 @@
           </div>
         </template>
 
+        <!-- Sprint 2 R4 2026-07-21: A/B test toggle + Preview button -->
+        <div class="f-row" style="margin-top: 12px; gap: 12px;">
+          <button type="button" class="btn btn-ghost btn-sm" @click="showPreview = true"
+            :disabled="!form.messageText.trim() || !form.zaloAccountId">
+            <v-icon size="14">mdi-eye-outline</v-icon> Xem trước
+          </button>
+          <label class="switch-ab">
+            <input type="checkbox" v-model="form.abMode" true-value="ab_split" false-value="off" />
+            <span>🧪 A/B test ({{ form.abMode === 'ab_split' ? form.variantTexts.length + 1 + ' variants' : 'tắt' }})</span>
+          </label>
+        </div>
+        <ABVariantsEditor v-if="form.abMode === 'ab_split'" v-model="form.variantTexts" class="mt-2" />
+
         <label class="f-label">Lịch gửi</label>
         <div class="f-tabs">
           <button v-for="t in scheduleTypes" :key="t.value" class="f-tab"
@@ -270,6 +285,17 @@
         </div>
       </div>
     </div>
+
+    <!-- Sprint 2 R4 2026-07-21: Preview modal render biến {{ten}} {{sdt}} -->
+    <PreviewModal
+      :open="showPreview"
+      :source-type="form.sourceType"
+      :customer-list-id="form.customerListId"
+      :zalo-account-id="form.zaloAccountId"
+      :message-text="form.messageText"
+      :count="3"
+      @close="showPreview = false"
+    />
   </div>
 </template>
 
@@ -280,6 +306,9 @@ import { api } from '@/api/index';
 import { listMedia, type MediaAssetItem } from '@/api/media';
 import { useToast } from '@/composables/use-toast';
 import { useConfirm } from '@/composables/use-confirm';
+import HeatmapWidget from '@/components/marketing/HeatmapWidget.vue';
+import PreviewModal from '@/components/marketing/PreviewModal.vue';
+import ABVariantsEditor from '@/components/marketing/ABVariantsEditor.vue';
 
 const { push: toast } = useToast();
 const { confirm } = useConfirm();
@@ -325,7 +354,13 @@ const form = reactive({
   scheduleType: 'once' as 'once' | 'daily' | 'weekly',
   scheduledAtLocal: '', timeOfDay: '08:00', daysOfWeek: [] as number[],
   maxPerRun: 50, delaySecMin: 30, delaySecMax: 90,
+  // Sprint 2 R4 2026-07-21: A/B test
+  abMode: 'off' as 'off' | 'ab_split',
+  variantTexts: ['', ''] as string[], // variant A = messageText, B,C = variantTexts[0..1]
 });
+
+// Sprint 2 R4: preview state
+const showPreview = ref(false);
 
 const friendCount = ref<number | null>(null);
 
@@ -417,10 +452,14 @@ async function createJob(): Promise<void> {
 
   creating.value = true;
   try {
+    // Sprint 2 R4: build payload A/B nếu abMode='ab_split'.
+    // Variant A = messageText, Variants B,C = variantTexts[0..abVariantCount-2]
+    const isAb = form.abMode === 'ab_split';
+    const abVariantCount = isAb ? Math.max(2, Math.min(3, form.variantTexts.length + 1)) : null;
     await api.post('/broadcast-jobs', {
       name: form.name, sourceType: form.sourceType, zaloAccountId: form.zaloAccountId,
       customerListId: form.sourceType === 'customer_list' ? form.customerListId : undefined,
-      messageText: form.contentMode === 'text' ? form.messageText : '',
+      messageText: isAb ? (form.variantTexts[0] || form.messageText) : (form.contentMode === 'text' ? form.messageText : ''),
       imageUrl: form.contentMode === 'text' ? form.imageUrl || null : null,
       contentBlockIds: form.contentMode === 'blocks' ? form.contentBlockIds : [],
       scheduleType: form.scheduleType,
@@ -428,10 +467,13 @@ async function createJob(): Promise<void> {
       timeOfDay: form.scheduleType !== 'once' ? form.timeOfDay : null,
       daysOfWeek: form.scheduleType === 'weekly' ? form.daysOfWeek : [],
       maxPerRun: form.maxPerRun, delaySecMin: form.delaySecMin, delaySecMax: form.delaySecMax,
+      abMode: isAb ? 'ab_split' : 'off',
+      abVariantCount: isAb ? abVariantCount : undefined,
+      variantMessageTexts: isAb ? form.variantTexts.slice(1, abVariantCount! - 1) : undefined,
     });
-    toast('Đã tạo broadcast', 'success');
+    toast(isAb ? `Đã tạo broadcast A/B (${abVariantCount} variants)` : 'Đã tạo broadcast', 'success');
     showCreate.value = false;
-    Object.assign(form, { name: '', sourceType: 'friends', customerListId: '', messageText: '', imageUrl: '', contentMode: 'text', contentBlockIds: [], scheduledAtLocal: '', daysOfWeek: [] });
+    Object.assign(form, { name: '', sourceType: 'friends', customerListId: '', messageText: '', imageUrl: '', contentMode: 'text', contentBlockIds: [], scheduledAtLocal: '', daysOfWeek: [], abMode: 'off', variantTexts: ['', ''] });
     friendCount.value = null;
     await load();
   } catch (err: any) {

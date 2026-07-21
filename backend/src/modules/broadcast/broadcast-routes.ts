@@ -38,6 +38,13 @@ interface JobBody {
   delaySecMin?: number;
   delaySecMax?: number;
   status?: 'active' | 'paused';
+  // Sprint 2 R4 2026-07-21: A/B test mode.
+  // 'ab_split' + abVariantCount=2 → 2 variants (A=messageText, B=variantMessageTexts[0]).
+  // 'ab_split' + abVariantCount=3 → 3 variants.
+  // Khi abMode='ab_split', variantMessageTexts phải có length = abVariantCount - 1.
+  abMode?: 'off' | 'ab_split';
+  abVariantCount?: number;
+  variantMessageTexts?: string[];
 }
 
 // Chỉ owner/admin được tạo/sửa/xoá/chạy broadcast — tránh nhân viên spam khách bằng nick chung.
@@ -177,9 +184,15 @@ export async function broadcastRoutes(app: FastifyInstance): Promise<void> {
         delaySecMin: Math.max(5, b.delaySecMin ?? 30),
         delaySecMax: Math.max(5, b.delaySecMax ?? 90),
         nextRunAt,
+        // Sprint 2 R4: A/B test fields. Mặc định 'off' để giữ backward-compat job cũ.
+        abMode: b.abMode === 'ab_split' ? 'ab_split' : 'off',
+        abVariantCount: b.abMode === 'ab_split' && b.abVariantCount === 3 ? 3 : b.abMode === 'ab_split' ? 2 : null,
+        variantMessageTexts: b.abMode === 'ab_split' && b.variantMessageTexts
+          ? (b.variantMessageTexts as unknown as object) // Prisma Json type
+          : undefined,
       },
     });
-    logger.info(`[broadcast] job created id=${job.id} by=${user.id} next=${nextRunAt.toISOString()}`);
+    logger.info(`[broadcast] job created id=${job.id} by=${user.id} next=${nextRunAt.toISOString()} abMode=${job.abMode}`);
     return reply.status(201).send({ job });
   });
 
@@ -293,4 +306,38 @@ export async function broadcastRoutes(app: FastifyInstance): Promise<void> {
       return { items };
     },
   );
+
+  // ── POST /broadcast/preview ─────────────────────────────────────────────
+  // Sprint 2 R4 2026-07-21: trả 3 mẫu KH + tin đã render biến trước khi submit.
+  app.post<{
+    Body: {
+      sourceType: 'customer_list' | 'friends';
+      customerListId?: string;
+      zaloAccountId: string;
+      messageText: string;
+      count?: number;
+    };
+  }>('/api/v1/broadcast/preview', async (request, reply) => {
+    const user = request.user!;
+    const body = request.body;
+    if (!body.messageText?.trim()) return reply.status(400).send({ error: 'messageText required' });
+    if (!body.zaloAccountId) return reply.status(400).send({ error: 'zaloAccountId required' });
+    if (body.sourceType === 'customer_list' && !body.customerListId) {
+      return reply.status(400).send({ error: 'customerListId required for sourceType=customer_list' });
+    }
+    const { getBroadcastPreview } = await import('./broadcast-preview-service.js');
+    const samples = await getBroadcastPreview(user.orgId, body);
+    return { samples };
+  });
+
+  // ── GET /broadcast/heatmap ──────────────────────────────────────────────
+  // Sprint 2 R4 2026-07-21: ma trận 24x7 response rate cho N ngày gần nhất.
+  app.get<{ Querystring: { days?: string } }>('/api/v1/broadcast/heatmap', async (request, reply) => {
+    const user = request.user!;
+    const days = Math.max(1, Math.min(90, parseInt(request.query.days ?? '30', 10) || 30));
+    const { getBroadcastHeatmap } = await import('./broadcast-heatmap-service.js');
+    const result = await getBroadcastHeatmap(user.orgId, days);
+    reply.header('X-Cache', 'HIT'); // in-memory cache indicator
+    return result;
+  });
 }

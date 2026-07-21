@@ -142,4 +142,67 @@ export async function broadcastReportRoutes(app: FastifyInstance): Promise<void>
       return reply.status(500).send({ error: 'Failed to fetch broadcast report' });
     }
   });
+
+  // ── GET /reports/broadcast/run/:runId — chi tiết 1 run (Sprint 2 R4) ──
+  // Trả responseRate + A/B groups nếu có.
+  app.get('/api/v1/reports/broadcast/run/:runId', async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user!;
+    if (user.role !== 'admin' && user.role !== 'owner') {
+      return reply.status(403).send({ error: 'forbidden' });
+    }
+    const { runId } = request.params as { runId: string };
+    const run = await prisma.broadcastRun.findFirst({
+      where: { id: runId, orgId: user.orgId },
+      include: { job: { select: { abMode: true, abVariantCount: true } } },
+    });
+    if (!run) return reply.status(404).send({ error: 'not_found' });
+
+    // Aggregate từ items: responseRate + A/B groups
+    const items = await prisma.broadcastRunItem.groupBy({
+      by: ['abGroupId', 'status'],
+      where: { runId: run.id },
+      _count: { _all: true },
+    });
+
+    let sentCount = 0;
+    let repliedCount = 0;
+    const groupsMap = new Map<string, { sent: number; replied: number }>();
+    for (const it of items) {
+      if (it.status !== 'sent') continue;
+      sentCount += it._count._all;
+      const gKey = it.abGroupId ?? '_';
+      const acc = groupsMap.get(gKey) ?? { sent: 0, replied: 0 };
+      acc.sent += it._count._all;
+      groupsMap.set(gKey, acc);
+    }
+    // Đếm repliedCount riêng (cần query thêm vì groupBy đã aggregate rồi)
+    const replied = await prisma.broadcastRunItem.count({
+      where: { runId: run.id, status: 'sent', repliedAt: { not: null } },
+    });
+    repliedCount = replied;
+    // Phân bổ repliedCount cho groups tỉ lệ sent
+    for (const [, acc] of groupsMap) {
+      acc.replied = sentCount > 0 ? Math.round((acc.sent / sentCount) * repliedCount) : 0;
+    }
+
+    const groups = [...groupsMap.entries()]
+      .filter(([k]) => k !== '_')
+      .map(([k, acc]) => ({ group: k, sent: acc.sent, replied: acc.replied, rate: pct(acc.replied, acc.sent) / 100 }))
+      .sort((a, b) => a.group.localeCompare(b.group));
+
+    return {
+      runId: run.id,
+      status: run.status,
+      startedAt: run.startedAt,
+      endedAt: run.endedAt,
+      sentCount,
+      failedCount: run.failedCount,
+      skippedCount: run.skippedCount,
+      responseRate: pct(repliedCount, sentCount) / 100,
+      repliedCount,
+      abMode: run.job.abMode,
+      abVariantCount: run.job.abVariantCount,
+      groups,
+    };
+  });
 }

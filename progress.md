@@ -151,3 +151,87 @@ Sau khi user confirm G1, Ä‘Ã£ implement 4 phases:
 - KhÃ´ng cÃ³ migration Prisma
 - KhÃ´ng viáº¿t e2e auto test cho UI
 - KHÃ”NG Ä‘á»¥ng EE features (Trigger/Sequence/Block/Care Session/Lead Notify/Lead Pool)
+---
+
+## Session 2 — 2026-07-21 (All Remaining Sprints 2-6)
+
+### ? Sprint 2 — Broadcast A/B + Heatmap + Blacklist (Change 2)
+Commit: 9d23da (feat(broadcast))
+
+Backend:
+- prisma: BroadcastJob.abMode/abVariantCount/variantMessageTexts, BroadcastRunItem.replyMessageId/repliedAt/abGroupId, ZaloAccount.broadcastBlacklisted/broadcastBlacklistReason
+- broadcast-preview-service.ts: render 3 sample recipients v?i variable substitution
+- broadcast-heatmap-service.ts: aggregate 24x7 grid v?i TTL cache
+- broadcast-routes.ts: POST /preview + GET /heatmap
+- broadcast-cron.ts: deterministic A/B assignment + skip blacklisted
+- broadcast-report-routes.ts: response rate + per-group metrics
+- message-handler.ts: detect broadcast replies (7-day window), invalidate heatmap cache
+- zalo-routes.ts: PUT /:id/broadcast-blacklist
+
+Frontend:
+- HeatmapWidget (color-coded 24x7 + top-3 suggestions)
+- PreviewModal (3 recipients rendered)
+- ABVariantsEditor (2-3 variants + char count)
+- BlacklistToggle (ZaloAccountsView)
+- BroadcastsView: A/B toggle, preview, variants, heatmap tab, ?listId prefill
+
+### ? Sprint 2 — AI Content Suggest + Churn Risk (Change 3)
+Commit: 9c25303 (feat(ai))
+
+Backend:
+- ai/prompts/content-block-suggest.ts: prompt + rule-based fallback (5 templates)
+- ai/prompts/churn-detector.ts: prompt + rule-based scoring
+- ai-service.ts: suggestContentBlocks + scoreChurnForContact
+- churn-risk/{churn-service,churn-cron,churn-routes}.ts
+- app.ts: register + start cron (02:00 nightly)
+- ai-routes.ts: POST /ai/suggest-content-blocks
+
+Frontend:
+- AiSuggestModal (ContentBlocksView)
+- ChurnRiskWidget (DashboardView 'system' tab)
+
+DB: ChurnRiskScore model (score 0-100, reason, computedAt)
+
+### ? Sprint 3+4 — Scoring Visualizer + Journey Funnel + Pipeline (Change 4)
+Commit: cda8d60 (feat(reports))
+
+Backend:
+- contacts/scoring-routes.ts: trend (30 days), signals (top 10), median
+- reports/journey-routes.ts: 6-stage funnel + drill-down
+
+Frontend:
+- ScoringTab (Chart.js trendline + signals + median)
+- JourneyFunnelView (6 stages + drop-off highlight)
+- JourneyStageDetailView (list contacts)
+- PipelineKanbanView (6 columns + drag-and-drop)
+- router: /reports/journey, /reports/journey/:stage, /marketing/pipeline
+
+### ? Sprint 5+6 — AI Campaign Studio + Multi-channel Inbox (Change 5)
+Commit: e3314d (feat(ai+integrations))
+
+Backend:
+- prisma: Channel enum, Conversation.channel, CampaignPlan model
+- ai/prompts/campaign-planner.ts: prompt + rule-based fallback
+- ai-service.ts: planCampaign + applyCampaignPlan
+- ai-routes.ts: POST /ai/plan-campaign + /:id/apply
+- integrations/channel-adapter.interface.ts
+- integrations/providers: facebook-messenger, instagram-dm, sms-brandname (HTTP gateway cho VN providers)
+- webhooks/facebook-webhook-route.ts: GET verification + POST parse
+
+Frontend:
+- AiCampaignStudioView (textarea ? 6-card plan ? t?o broadcast)
+- ChannelFilter + ChannelBadge
+- ChatView: inject ChannelFilter + channelFilter ref ? extraFilters.query.channel
+- router: /marketing/ai-studio
+
+### ? OpenSpec Archive (Gate G4)
+Commit: 25bdac5 (docs(openspec))
+- 4 changes archived thành 14 spec files trong openspec/specs/
+
+### ?? CÒN L?I cho user
+1. 
+px prisma migrate dev --name add_broadcast_ab_heatmap_blacklist_channel_campaign_plan_churn_risk (g?p 4 migrations)
+2. 
+pm install && npm test (ch?y test suite — Phase t?m d?ng do thi?u node_modules)
+3. M? /marketing/ai-studio và th? "Bán can 3PN Q7" d? xem AI plan trong 8 giây
+4. (Tùy ch?n) C?u hình FB/IG/SMS th?t trong app_settings n?u mu?n dùng th?t (Phase 2)

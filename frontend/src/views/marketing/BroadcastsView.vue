@@ -275,6 +275,7 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted, reactive, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import { api } from '@/api/index';
 import { listMedia, type MediaAssetItem } from '@/api/media';
 import { useToast } from '@/composables/use-toast';
@@ -282,6 +283,7 @@ import { useConfirm } from '@/composables/use-confirm';
 
 const { push: toast } = useToast();
 const { confirm } = useConfirm();
+const route = useRoute();
 
 interface JobRow {
   id: string; name: string; status: string; messageText: string; imageUrl: string | null;
@@ -493,6 +495,17 @@ function fmtDate(d: string | null): string {
 onMounted(async () => {
   await load();
   pollTimer = setInterval(load, 15_000); // run đang chạy → cập nhật số liệu
+
+  // Sprint 1 R3 2026-07-21: Phase 4 — pre-fill từ query.listId khi navigate từ ListsView.
+  // Toast feedback cho user biết tệp đã được chọn.
+  const qListId = route.query.listId;
+  if (typeof qListId === 'string' && qListId) {
+    await openCreate();
+    form.sourceType = 'customer_list';
+    form.customerListId = qListId;
+    const picked = lists.value.find((l) => l.id === qListId);
+    toast(`📂 Đã chọn tệp "${picked?.name ?? qListId}"`, 'success');
+  }
 });
 onUnmounted(() => { if (pollTimer) clearInterval(pollTimer); });
 </script>

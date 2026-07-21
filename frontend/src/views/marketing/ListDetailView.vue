@@ -47,6 +47,10 @@
             <v-icon size="16">mdi-target</v-icon>
             Tạo Mục tiêu từ tệp này
           </button>
+          <button class="btn btn-primary btn-sm" @click="onCreateBroadcast">
+            <v-icon size="16">mdi-send</v-icon>
+            Tạo Broadcast từ tệp này
+          </button>
           <button
             class="btn btn-sm"
             :class="currentList?.leadNotifyEnabled ? 'btn-running' : 'btn-ghost'"
@@ -897,8 +901,22 @@ async function onDelete() {
  */
 function onCreateMucTieu() {
   if (!listId.value) return;
+  // Sprint 1 R3 2026-07-21: Phase 4 wire Community route — /marketing/targets (CE.Targets).
+  // Trước đây trỏ sang /marketing/triggers/tao-moi (EE) — không có ở Community nên fail.
   router.push({
-    path: '/marketing/triggers/tao-moi',
+    path: '/marketing/targets',
+    query: { listId: listId.value },
+  });
+}
+
+/**
+ * Sprint 1 R3 2026-07-21: Phase 4 wire nút "Tạo Broadcast từ tệp".
+ * Pre-fill BroadcastsView với listId để user khỏi chọn lại.
+ */
+function onCreateBroadcast() {
+  if (!listId.value) return;
+  router.push({
+    path: '/marketing/broadcasts',
     query: { listId: listId.value },
   });
 }

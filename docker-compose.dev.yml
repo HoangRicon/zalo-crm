@@ -21,6 +21,9 @@ services:
       - DATABASE_URL=postgresql://${DB_USER:-crmuser}:${DB_PASSWORD}@db:5432/${DB_NAME:-zalocrm}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
       - TZ=Asia/Ho_Chi_Minh
+      # 2026-07-22 fix-zalo-crm-mvp-gaps#1: AI 9router connectivity
+      # Enable host.docker.internal resolver for OpenAI-compatible endpoints
+      - RUNNING_IN_DOCKER=1
     depends_on:
       db:
         condition: service_healthy

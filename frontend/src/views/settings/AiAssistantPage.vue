@@ -21,6 +21,9 @@
           <h2 class="provider-card-title">🔌 Cấu hình nhà cung cấp AI</h2>
           <p class="provider-card-sub">Cấu hình Custom provider (OpenAI-compatible endpoint)</p>
         </div>
+        <div v-if="dockerDetected" class="docker-banner">
+          🐳 Backend đang chạy trong Docker — nếu AI endpoint chạy ở máy host, dùng <code>http://host.docker.internal:PORT/v1</code> thay vì <code>localhost</code>.
+        </div>
         <div class="field-group">
           <label class="field-label">Base URL</label>
           <input
@@ -30,7 +33,7 @@
             spellcheck="false"
           />
           <div class="field-hint">
-            URL endpoint tới OpenAI-compatible API. VD: http://localhost:20128/v1 cho vLLM/Ollama
+            URL endpoint tới OpenAI-compatible API. VD: http://host.docker.internal:20128/v1 cho vLLM/Ollama
           </div>
         </div>
         <div class="field-group">
@@ -41,17 +44,29 @@
             class="regex-input"
             placeholder="sk-..."
           />
-          <div class="field-hint">Key sẽ được mã hoá AES-GCM khi lưu</div>
+          <div class="field-hint">
+            <span v-if="customProvider.hasKey">Key đã lưu ({{ customProvider.keyMask }}). Để trống nếu muốn giữ nguyên.</span>
+            <span v-else>Key sẽ được mã hoá AES-GCM khi lưu</span>
+          </div>
         </div>
         <div class="field-group">
           <label class="field-label">Model</label>
+          <div v-if="modelOptions.length > 0" class="model-row">
+            <select v-model="customProvider.model" class="regex-input model-select">
+              <option v-for="m in modelOptions" :key="m.value" :value="m.value">{{ m.title }}</option>
+            </select>
+            <button class="btn-secondary btn-sm" @click="refetchModels" :disabled="loadingModels">
+              {{ loadingModels ? '⏳' : '🔄' }}
+            </button>
+          </div>
           <input
+            v-else
             v-model="customProvider.model"
             class="regex-input"
             placeholder="cx/gpt-5.4"
             spellcheck="false"
           />
-          <div class="field-hint">Tên model trên endpoint. VD: cx/gpt-5.4, llama-3.1-70b, gpt-4o</div>
+          <div class="field-hint">Tên model trên endpoint. Bấm 🔄 để fetch danh sách từ endpoint.</div>
         </div>
         <div class="provider-actions">
           <button class="btn-secondary" @click="saveCustomProvider" :disabled="savingProvider">
@@ -63,6 +78,7 @@
         </div>
         <div v-if="connectionResult" class="connection-result" :class="{ ok: connectionResult.ok, err: !connectionResult.ok }">
           {{ connectionResult.ok ? '✅' : '❌' }} {{ connectionResult.message }}
+          <span v-if="connectionResult.url" class="connection-url">{{ connectionResult.url }}</span>
         </div>
       </div>
 
@@ -254,21 +270,50 @@ function restoreDefault() {
 }
 
 // 2026-07-22: Custom Provider config
-const customProvider = ref({ baseUrl: '', apiKey: '', model: '' });
+const customProvider = ref({ baseUrl: '', apiKey: '', model: '', hasKey: false, keyMask: '' });
 const savingProvider = ref(false);
 const testingConnection = ref(false);
-const connectionResult = ref<{ ok: boolean; message: string } | null>(null);
+const connectionResult = ref<{ ok: boolean; message: string; url?: string } | null>(null);
+const dockerDetected = ref(false);
+const modelOptions = ref<Array<{ title: string; value: string }>>([]);
+const loadingModels = ref(false);
 
 async function loadCustomProvider() {
   try {
-    const res = await api.get<{ providers: Array<{ id: string; baseUrl: string; hasKey: boolean; model?: string }> }>('/ai/providers');
+    const res = await api.get<{ providers: Array<{ id: string; baseUrl: string; hasKey: boolean; keyMask: string }> }>('/ai/providers');
     const custom = res.data.providers?.find((p) => p.id === 'custom');
     if (custom) {
       customProvider.value.baseUrl = custom.baseUrl || '';
-      customProvider.value.model = config.value?.model || '';
+      customProvider.value.hasKey = custom.hasKey;
+      customProvider.value.keyMask = custom.keyMask;
+    }
+    if (config.value?.provider === 'custom') {
+      customProvider.value.model = config.value.model;
+      // Auto-fetch models once baseUrl loaded
+      refetchModels();
     }
   } catch {
     // silently ignore
+  }
+}
+
+async function refetchModels() {
+  if (!customProvider.value.baseUrl) {
+    modelOptions.value = [];
+    return;
+  }
+  loadingModels.value = true;
+  try {
+    const res = await api.get<{ models: Array<{ title: string; value: string }>; error?: string }>('/ai/providers/custom/models');
+    modelOptions.value = res.data.models || [];
+    if (res.data.error) {
+      connectionResult.value = { ok: false, message: `Không load được model: ${res.data.error}` };
+    }
+  } catch (e: any) {
+    modelOptions.value = [];
+    connectionResult.value = { ok: false, message: e?.response?.data?.error || 'Lỗi load models' };
+  } finally {
+    loadingModels.value = false;
   }
 }
 
@@ -285,6 +330,8 @@ async function saveCustomProvider() {
       await api.put('/ai/config', { provider: 'custom', model: customProvider.value.model });
     }
     connectionResult.value = { ok: true, message: 'Đã lưu Custom Provider' };
+    // Refresh load to pick up hasKey + keyMask
+    await loadCustomProvider();
   } catch (e: any) {
     connectionResult.value = { ok: false, message: e?.response?.data?.error || e?.message || 'Lỗi lưu' };
   } finally {
@@ -297,16 +344,19 @@ async function testCustomConnection() {
   testingConnection.value = true;
   connectionResult.value = null;
   try {
-    const res = await api.post<{ ok: boolean; error?: string; model?: string }>('/ai/test-connection', {
+    const res = await api.post<{ ok: boolean; error?: string; model?: string; url?: string; docker?: boolean }>('/ai/test-connection', {
       provider: 'custom',
       baseUrl: customProvider.value.baseUrl || undefined,
       apiKey: customProvider.value.apiKey || undefined,
       model: customProvider.value.model || undefined,
     });
+    dockerDetected.value = !!res.data.docker;
     if (res.data.ok) {
-      connectionResult.value = { ok: true, message: `Kết nối OK với model ${res.data.model}` };
+      connectionResult.value = { ok: true, message: `Kết nối OK với model ${res.data.model}`, url: res.data.url };
+      // After successful test, refresh model list
+      refetchModels();
     } else {
-      connectionResult.value = { ok: false, message: res.data.error || 'Kết nối thất bại' };
+      connectionResult.value = { ok: false, message: res.data.error || 'Kết nối thất bại', url: res.data.url };
     }
   } catch (e: any) {
     connectionResult.value = { ok: false, message: e?.response?.data?.error || e?.message || 'Test thất bại' };
@@ -396,6 +446,35 @@ onMounted(() => {
   color: #b91c1c;
   border: 1px solid #fecaca;
 }
+.connection-url {
+  display: block;
+  margin-top: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  opacity: 0.85;
+}
+.docker-banner {
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+.docker-banner code {
+  font-family: 'JetBrains Mono', monospace;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.model-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.model-select { flex: 1; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
 .toggle-card {
   background: #fff;
   border: 1px solid #e2e8f0;

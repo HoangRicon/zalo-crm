@@ -15,6 +15,7 @@
  * (function sẽ append).
  */
 import { generateWithOpenaiCompat } from './openai-compat.js';
+import { resolveHost } from '../ai-host-resolver.js';
 
 export async function generateWithCustom(
   baseUrl: string,
@@ -34,8 +35,14 @@ export async function generateWithCustom(
   if (!model) {
     throw new Error('AI provider model not configured');
   }
+  // 2026-07-22 fix: Nếu user đã lưu baseUrl có sẵn /v1 (vd http://localhost:20128/v1),
+  // KHÔNG nối thêm /v1/chat/completions nữa → tránh /v1/v1/chat/completions → 404.
+  const resolvedHost = resolveHost(trimmed);
+  const chatUrl = resolvedHost.endsWith('/v1') || resolvedHost.endsWith('/v1/')
+    ? `${resolvedHost.replace(/\/+$/, '')}/chat/completions`
+    : `${resolvedHost}/v1/chat/completions`;
   return generateWithOpenaiCompat(
-    `${trimmed}/v1/chat/completions`,
+    chatUrl,
     apiKey,
     model,
     system,

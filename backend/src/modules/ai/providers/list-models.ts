@@ -7,6 +7,7 @@
  * (route sẽ bắt và trả {models:[],error} cho UI fallback gõ tay).
  */
 import { logger } from '../../../shared/utils/logger.js';
+import { resolveHost } from '../ai-host-resolver.js';
 
 export type ProviderModel = { title: string; value: string };
 
@@ -91,9 +92,10 @@ export async function listProviderModels(
       break;
     case 'custom':
       // 2026-07-21: Custom provider dùng OpenAI-compatible API → gọi /v1/models.
+      // 2026-07-22: resolve host cho Docker (localhost → host.docker.internal).
       // Nếu provider không có endpoint này (vd Ollama cũ, llama.cpp), route trả {models:[], error}
       // và UI cho phép gõ tay model name.
-      models = await listOpenaiCompat(baseUrl, apiKey, '/v1/models');
+      models = await listOpenaiCompat(resolveHost(baseUrl), apiKey, '/v1/models');
       break;
     default:
       throw new Error(`Unknown provider: ${provider}`);

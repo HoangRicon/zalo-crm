@@ -17,6 +17,7 @@ import {
 import { listProviderModels, invalidateModelCache } from './providers/list-models.js';
 import { logger } from '../../shared/utils/logger.js';
 import { prisma } from '../../shared/database/prisma-client.js';
+import { resolveHost, isRunningInDocker } from './ai-host-resolver.js';
 
 async function assertConversationReadAccess(request: FastifyRequest, reply: FastifyReply, conversationId: string) {
   const user = request.user!;
@@ -126,7 +127,9 @@ export async function aiRoutes(app: FastifyInstance) {
       if (!resolvedBaseUrl) return reply.status(200).send({ ok: false, error: 'Chưa cấu hình Base URL' });
 
       const model = body.model || `${body.provider}-default`;
-      const url = `${resolvedBaseUrl.replace(/\/$/, '')}/chat/completions`;
+      const url = `${resolveHost(resolvedBaseUrl.replace(/\/$/, ''))}/chat/completions`;
+      // 2026-07-22: ghi log URL cuối cùng để debug kết nối từ container tới host.
+      logger.info('[ai] test-connection provider=%s org=%s docker=%s url=%s', body.provider, orgId, isRunningInDocker(), url);
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15_000);
       try {
@@ -146,7 +149,7 @@ export async function aiRoutes(app: FastifyInstance) {
         if (!r.ok) {
           return reply.status(200).send({ ok: false, error: `HTTP ${r.status}: ${await r.text().catch(() => '')}` });
         }
-        return { ok: true, model };
+        return { ok: true, model, url, docker: isRunningInDocker() };
       } finally {
         clearTimeout(timeout);
       }

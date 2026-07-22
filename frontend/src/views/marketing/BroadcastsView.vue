@@ -25,13 +25,30 @@
     <div class="bc-body">
       <HeatmapWidget :days="30" class="heatmap-container" />
 
-      <div v-if="loading" class="bc-empty">Đang tải…</div>
-      <div v-else-if="jobs.length === 0" class="bc-empty">
-        <v-icon size="40">mdi-bullhorn-outline</v-icon>
-        <p>Chưa có broadcast nào. Bấm <b>Tạo broadcast</b> để bắt đầu.</p>
+      <!-- 2026-07-22 fix-zalo-crm-mvp-gaps#8: status filter + quick stats -->
+      <div class="bc-filter-row">
+        <button
+          v-for="opt in filterOptions"
+          :key="opt.value"
+          class="bc-filter-btn"
+          :class="{ active: statusFilter === opt.value }"
+          @click="statusFilter = opt.value"
+        >
+          {{ opt.label }}
+          <span v-if="opt.count !== undefined" class="bc-filter-count">{{ opt.count }}</span>
+        </button>
       </div>
 
-      <div v-for="job in jobs" :key="job.id" class="bc-card" :class="'st-' + job.status">
+      <div v-if="loading" class="bc-empty">Đang tải…</div>
+      <div v-else-if="filteredJobs.length === 0" class="bc-empty">
+        <v-icon size="40">mdi-bullhorn-outline</v-icon>
+        <p v-if="jobs.length === 0">
+          Chưa có broadcast nào. Bấm <b>Tạo broadcast</b> để bắt đầu.
+        </p>
+        <p v-else>Không có broadcast nào ở trạng thái <b>{{ statusFilterLabel }}</b>.</p>
+      </div>
+
+      <div v-for="job in filteredJobs" :key="job.id" class="bc-card" :class="'st-' + job.status">
         <div class="bc-card-main">
           <div class="bc-card-head">
             <span class="bc-name">{{ job.name }}</span>
@@ -350,6 +367,19 @@ const showCreate = ref(false);
 const creating = ref(false);
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
+// 2026-07-22 fix-zalo-crm-mvp-gaps#8: status filter
+const statusFilter = ref<'all' | 'active' | 'paused' | 'done'>('all');
+const filterOptions = computed(() => [
+  { value: 'all' as const,     label: 'Tất cả',     count: jobs.value.length },
+  { value: 'active' as const,  label: '🟢 Đang chạy', count: jobs.value.filter((j) => j.status === 'active').length },
+  { value: 'paused' as const,  label: '⏸ Tạm dừng',  count: jobs.value.filter((j) => j.status === 'paused').length },
+  { value: 'done' as const,    label: '✓ Hoàn thành', count: jobs.value.filter((j) => j.status === 'done').length },
+]);
+const filteredJobs = computed(() =>
+  statusFilter.value === 'all' ? jobs.value : jobs.value.filter((j) => j.status === statusFilter.value),
+);
+const statusFilterLabel = computed(() => filterOptions.value.find((f) => f.value === statusFilter.value)?.label ?? '');
+
 const scheduleTypes = [
   { value: 'once' as const, label: 'Gửi 1 lần' },
   { value: 'daily' as const, label: 'Hàng ngày' },
@@ -586,6 +616,49 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer); });
 .mts { font-size: 13px; color: var(--text-secondary, #666); margin-top: 2px; max-width: 720px; }
 .actions { display: flex; gap: 8px; flex-shrink: 0; }
 .bc-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+
+.bc-filter-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.bc-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e5e4e7);
+  border-radius: 9999px;
+  font-size: 12.5px;
+  color: var(--text-secondary, #555);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.bc-filter-btn:hover {
+  border-color: #0e445a;
+  color: #0e445a;
+}
+.bc-filter-btn.active {
+  background: #0e445a;
+  border-color: #0e445a;
+  color: #fff;
+}
+.bc-filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 9px;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.bc-filter-btn:not(.active) .bc-filter-count {
+  background: var(--bg-subtle, #f1f1f3);
+}
 .bc-empty { text-align: center; color: var(--text-secondary, #888); padding: 32px 0; }
 .bc-card { display: flex; justify-content: space-between; gap: 12px; border: 1px solid var(--border, #e5e4e7); border-radius: 10px; padding: 12px 14px; background: var(--surface, #fff); }
 .bc-card.st-paused { opacity: 0.75; }

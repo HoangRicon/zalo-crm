@@ -99,8 +99,10 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { id: 'zalo-labels', label: 'Tag Zalo native', icon: 'mdi-label-outline', route: '/settings/crm/zalo-labels', permission: 'admin', resource: 'settings', aliases: ['zalo label', 'nhãn zalo'] },
       { id: 'scoring', label: 'Lead scoring', icon: 'mdi-chart-line', route: '/settings/crm/scoring', permission: 'admin', resource: 'settings', aliases: ['điểm', 'chấm điểm', 'score'] },
       { id: 'appointments', label: 'Lịch hẹn & Nhắc hẹn', icon: 'mdi-calendar-clock-outline', route: '/settings/crm/appointments', permission: 'admin', resource: 'settings', aliases: ['lịch hẹn', 'appointment', 'nhắc hẹn', 'reminder', 'zalo reminder', 'nhắc lịch'] },
+      { id: 'templates', label: 'Mẫu tin nhắn', icon: 'mdi-text-box-multiple-outline', route: '/settings/crm/templates', permission: 'admin', resource: 'settings', aliases: ['template', 'mẫu tin', 'shortcut', 'biến'] },
       // Lead Pool — gộp Nhận Lead + Queue chia Lead thành 1 mục 2 tab (2026-06-10).
-      // Lead Pool nav item → extension bundle (eeSettingsItems.customer).
+      // Community extension 2026-07-22.
+      { id: 'lead-pool', label: 'Lead Pool', icon: 'mdi-account-group-outline', route: '/settings/crm/lead-pool', permission: 'admin', resource: 'settings', aliases: ['lead pool', 'pool', 'chia lead', 'phân phối lead', 'lead'] },
     ],
   },
 
@@ -115,7 +117,10 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       // 2026-06-18 — Trần SDK dời từ trang Zalo sang đây (gate resource 'settings', KHÔNG 'zalo_account')
       // → sale quản nick không thấy/không đổi được trần (trần SDK nguy hiểm).
       { id: 'sdk-limits', label: 'Trần an toàn SDK Zalo', icon: 'mdi-shield-alert-outline', route: '/settings/channels/sdk-limits', permission: 'admin', resource: 'settings', aliases: ['trần', 'rate limit', 'sdk', 'giới hạn', 'an toàn nick', 'khoá nick', 'quota nick', 'giới hạn gửi'] },
-      // Facebook Lead Ads item → extension bundle (eeSettingsItems.channels).
+      // 2026-07-22 — Lead Ads: Facebook Lead Ads + Zalo Ads
+      { id: 'lead-ads', label: 'Lead Ads', icon: 'mdi-lead', route: '/settings/channels/lead-ads', permission: 'admin', resource: 'settings', aliases: ['facebook lead ads', 'zalo ads', 'lead', 'form', 'leadgen'] },
+      // 2026-07-22 — Blacklist broadcast: tách riêng để tránh template conflict với ZaloAccountsView
+      { id: 'broadcast-blacklist', label: 'Blacklist broadcast', icon: 'mdi-cancel', route: '/settings/channels/broadcast-blacklist', permission: 'admin', resource: 'settings', aliases: ['blacklist', 'broadcast', 'chặn broadcast', 'cấm broadcast'] },
       // Automation tech-settings nav item → extension bundle (eeSettingsItems.channels).
       { id: 'integrations', label: 'Tích hợp 3rd party', icon: 'mdi-puzzle-outline', route: '/settings/channels/integrations', permission: 'admin', resource: 'settings', aliases: ['tích hợp', 'integration', '3rd party'] },
     ],
@@ -132,6 +137,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { id: 'system-notifications', label: 'Thông báo hệ thống', icon: 'mdi-bell-cog-outline', route: '/settings/org/system-notifications', permission: 'admin', resource: 'settings', aliases: ['system notify', 'thông báo', 'zalo notify', 'uid', 'check live'] },
       { id: 'ai-assistant', label: 'Trợ lý AI', icon: 'mdi-robot-outline', route: '/settings/crm/ai-assistant', permission: 'admin', resource: 'settings', aliases: ['ai', 'tro ly', 'virtual chat', 'gemini', 'prompt'] },
       { id: 'api', label: 'API & Webhook', icon: 'mdi-api', route: '/settings/dev/api', permission: 'owner', resource: 'webhook', aliases: ['webhook', 'api key', 'dev'] },
+      { id: 'backup', label: 'Backup', icon: 'mdi-cloud-upload-outline', route: '/settings/dev/backup', permission: 'owner', resource: 'backup', aliases: ['backup', 'sao lưu', 'restore'] },
     ],
   },
 ];

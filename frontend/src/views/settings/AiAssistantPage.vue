@@ -15,6 +15,57 @@
     </header>
 
     <div v-if="config" class="ai-page-body">
+      <!-- 2026-07-22: Custom Provider Configuration -->
+      <div class="provider-card">
+        <div class="provider-card-header">
+          <h2 class="provider-card-title">🔌 Cấu hình nhà cung cấp AI</h2>
+          <p class="provider-card-sub">Cấu hình Custom provider (OpenAI-compatible endpoint)</p>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Base URL</label>
+          <input
+            v-model="customProvider.baseUrl"
+            class="regex-input"
+            placeholder="http://localhost:20128/v1"
+            spellcheck="false"
+          />
+          <div class="field-hint">
+            URL endpoint tới OpenAI-compatible API. VD: http://localhost:20128/v1 cho vLLM/Ollama
+          </div>
+        </div>
+        <div class="field-group">
+          <label class="field-label">API Key</label>
+          <input
+            v-model="customProvider.apiKey"
+            type="password"
+            class="regex-input"
+            placeholder="sk-..."
+          />
+          <div class="field-hint">Key sẽ được mã hoá AES-GCM khi lưu</div>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Model</label>
+          <input
+            v-model="customProvider.model"
+            class="regex-input"
+            placeholder="cx/gpt-5.4"
+            spellcheck="false"
+          />
+          <div class="field-hint">Tên model trên endpoint. VD: cx/gpt-5.4, llama-3.1-70b, gpt-4o</div>
+        </div>
+        <div class="provider-actions">
+          <button class="btn-secondary" @click="saveCustomProvider" :disabled="savingProvider">
+            {{ savingProvider ? '⏳ Đang lưu...' : '💾 Lưu Custom Provider' }}
+          </button>
+          <button class="btn-primary" @click="testCustomConnection" :disabled="testingConnection">
+            {{ testingConnection ? '⏳ Đang test...' : '🧪 Test kết nối' }}
+          </button>
+        </div>
+        <div v-if="connectionResult" class="connection-result" :class="{ ok: connectionResult.ok, err: !connectionResult.ok }">
+          {{ connectionResult.ok ? '✅' : '❌' }} {{ connectionResult.message }}
+        </div>
+      </div>
+
       <!-- Toggle bật/tắt -->
       <div class="toggle-card">
         <label class="toggle-row">
@@ -202,7 +253,72 @@ function restoreDefault() {
   config.value.aiAssistantPromptTemplate = config.value.defaultPrompt;
 }
 
-onMounted(load);
+// 2026-07-22: Custom Provider config
+const customProvider = ref({ baseUrl: '', apiKey: '', model: '' });
+const savingProvider = ref(false);
+const testingConnection = ref(false);
+const connectionResult = ref<{ ok: boolean; message: string } | null>(null);
+
+async function loadCustomProvider() {
+  try {
+    const res = await api.get<{ providers: Array<{ id: string; baseUrl: string; hasKey: boolean; model?: string }> }>('/ai/providers');
+    const custom = res.data.providers?.find((p) => p.id === 'custom');
+    if (custom) {
+      customProvider.value.baseUrl = custom.baseUrl || '';
+      customProvider.value.model = config.value?.model || '';
+    }
+  } catch {
+    // silently ignore
+  }
+}
+
+async function saveCustomProvider() {
+  savingProvider.value = true;
+  try {
+    if (customProvider.value.baseUrl) {
+      await api.put('/ai/providers/custom', { baseUrl: customProvider.value.baseUrl });
+    }
+    if (customProvider.value.apiKey) {
+      await api.put('/ai/providers/custom', { apiKey: customProvider.value.apiKey });
+    }
+    if (customProvider.value.model) {
+      await api.put('/ai/config', { provider: 'custom', model: customProvider.value.model });
+    }
+    connectionResult.value = { ok: true, message: 'Đã lưu Custom Provider' };
+  } catch (e: any) {
+    connectionResult.value = { ok: false, message: e?.response?.data?.error || e?.message || 'Lỗi lưu' };
+  } finally {
+    savingProvider.value = false;
+    setTimeout(() => (connectionResult.value = null), 5000);
+  }
+}
+
+async function testCustomConnection() {
+  testingConnection.value = true;
+  connectionResult.value = null;
+  try {
+    const res = await api.post<{ ok: boolean; error?: string; model?: string }>('/ai/test-connection', {
+      provider: 'custom',
+      baseUrl: customProvider.value.baseUrl || undefined,
+      apiKey: customProvider.value.apiKey || undefined,
+      model: customProvider.value.model || undefined,
+    });
+    if (res.data.ok) {
+      connectionResult.value = { ok: true, message: `Kết nối OK với model ${res.data.model}` };
+    } else {
+      connectionResult.value = { ok: false, message: res.data.error || 'Kết nối thất bại' };
+    }
+  } catch (e: any) {
+    connectionResult.value = { ok: false, message: e?.response?.data?.error || e?.message || 'Test thất bại' };
+  } finally {
+    testingConnection.value = false;
+  }
+}
+
+onMounted(() => {
+  load();
+  loadCustomProvider();
+});
 </script>
 
 <style scoped>
@@ -239,6 +355,46 @@ onMounted(load);
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+.provider-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+}
+.provider-card-header {
+  margin-bottom: 12px;
+}
+.provider-card-title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.provider-card-sub {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+}
+.provider-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.connection-result {
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.connection-result.ok {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+.connection-result.err {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
 }
 .toggle-card {
   background: #fff;

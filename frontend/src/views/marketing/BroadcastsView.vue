@@ -90,13 +90,26 @@
         <label class="f-label">Tên broadcast</label>
         <input v-model="form.name" class="f-input" placeholder="VD: Khuyến mãi tháng 7" />
 
-        <label class="f-label">Nick Zalo gửi</label>
-        <select v-model="form.zaloAccountId" class="f-input" @change="onNickChange">
-          <option value="" disabled>— chọn nick —</option>
-          <option v-for="n in nicks" :key="n.id" :value="n.id">
-            {{ n.displayName || n.phone }} {{ n.status !== 'connected' ? '(mất kết nối)' : '' }}
-          </option>
-        </select>
+        <label class="f-label">Nick Zalo gửi (chọn 1 hoặc nhiều)</label>
+        <div class="f-nick-list">
+          <label v-for="n in nicks" :key="n.id" class="f-nick-item" :class="{ disabled: n.status !== 'connected' }">
+            <input
+              type="checkbox"
+              :checked="form.zaloAccountIds.includes(n.id)"
+              :disabled="n.status !== 'connected'"
+              @change="toggleNick(n.id)"
+            />
+            <span>{{ n.displayName || n.phone }} {{ n.status !== 'connected' ? '(mất kết nối)' : '' }}</span>
+          </label>
+        </div>
+        <div v-if="form.zaloAccountIds.length > 1" class="f-note" style="margin-top:6px">
+          <v-icon size="14">mdi-information-outline</v-icon>
+          Chọn chế độ gửi:
+          <select v-model="form.sendMode" class="f-input-sm" style="margin-left:6px">
+            <option value="duplicate">Tất cả nick gửi cùng tin (duplicate)</option>
+            <option value="round_robin">Mỗi nick gửi một phần (round-robin)</option>
+          </select>
+        </div>
 
         <label class="f-label">Người nhận</label>
         <div class="f-tabs">
@@ -349,7 +362,7 @@ const dowOptions = [
 
 const form = reactive({
   name: '', sourceType: 'friends' as 'customer_list' | 'friends',
-  customerListId: '', zaloAccountId: '', messageText: '', imageUrl: '',
+  customerListId: '', zaloAccountId: '', zaloAccountIds: [] as string[], sendMode: 'duplicate' as 'duplicate' | 'round_robin', messageText: '', imageUrl: '',
   contentMode: 'text' as 'text' | 'blocks', contentBlockIds: [] as string[],
   scheduleType: 'once' as 'once' | 'daily' | 'weekly',
   scheduledAtLocal: '', timeOfDay: '08:00', daysOfWeek: [] as number[],
@@ -358,6 +371,17 @@ const form = reactive({
   abMode: 'off' as 'off' | 'ab_split',
   variantTexts: ['', ''] as string[], // variant A = messageText, B,C = variantTexts[0..1]
 });
+
+function toggleNick(id: string): void {
+  const idx = form.zaloAccountIds.indexOf(id);
+  if (idx >= 0) {
+    form.zaloAccountIds.splice(idx, 1);
+  } else {
+    form.zaloAccountIds.push(id);
+  }
+  // Keep zaloAccountId in sync for backward compat
+  form.zaloAccountId = form.zaloAccountIds[0] || '';
+}
 
 // Sprint 2 R4: preview state
 const showPreview = ref(false);
@@ -442,7 +466,7 @@ function toggleDow(d: number): void {
 
 async function createJob(): Promise<void> {
   if (!form.name.trim()) return void toast('Nhập tên broadcast', 'error');
-  if (!form.zaloAccountId) return void toast('Chọn nick Zalo gửi', 'error');
+  if (!form.zaloAccountIds.length) return void toast('Chọn nick Zalo gửi', 'error');
   if (form.sourceType === 'customer_list' && !form.customerListId) return void toast('Chọn tệp khách hàng', 'error');
   if (form.sourceType === 'friends' && !friendCount.value) return void toast('Nick này chưa có bạn bè đã kết bạn', 'error');
   if (form.contentMode === 'text' && !form.messageText.trim()) return void toast('Nhập nội dung tin', 'error');
@@ -457,7 +481,10 @@ async function createJob(): Promise<void> {
     const isAb = form.abMode === 'ab_split';
     const abVariantCount = isAb ? Math.max(2, Math.min(3, form.variantTexts.length + 1)) : null;
     await api.post('/broadcast-jobs', {
-      name: form.name, sourceType: form.sourceType, zaloAccountId: form.zaloAccountId,
+      name: form.name, sourceType: form.sourceType,
+      zaloAccountId: form.zaloAccountIds[0],
+      zaloAccountIds: form.zaloAccountIds,
+      sendMode: form.sendMode,
       customerListId: form.sourceType === 'customer_list' ? form.customerListId : undefined,
       messageText: isAb ? (form.variantTexts[0] || form.messageText) : (form.contentMode === 'text' ? form.messageText : ''),
       imageUrl: form.contentMode === 'text' ? form.imageUrl || null : null,

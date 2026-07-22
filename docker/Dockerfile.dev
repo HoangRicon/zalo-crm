@@ -30,18 +30,16 @@ RUN npm install -g concurrently tsx --no-audit --no-fund
 EXPOSE 3000 5173
 
 # Entrypoint script chạy trong /app để đảm bảo concurrently spawn đúng cwd.
-RUN printf '%s\n' \
-    '#!/bin/sh' \
-    'set -e' \
-    'cd /app/backend' \
-    'echo "[init] WORKDIR=$(pwd)"' \
-    'echo "[init] Applying Prisma schema (db push)..."' \
-    'DATABASE_URL="$DATABASE_URL" npx prisma db push --schema=prisma/schema.prisma --accept-data-loss 2>&1 | tail -3 || echo "[init] Prisma push failed but continuing (dev only)"' \
-    'cd /app' \
-    'exec concurrently --names "BACKEND,FRONTEND" -c "blue,green" ' \
-    '  "cd /app/backend && npx tsx watch src/app.ts" ' \
-    '  "cd /app/frontend && npx vite --host 0.0.0.0 --port 5173"' \
-    > /entrypoint.sh && chmod +x /entrypoint.sh
+# concurrently v9 requires commands as separate arguments, not multiline.
+RUN printf '#!/bin/sh\n' > /entrypoint.sh && \
+    printf 'set -e\n' >> /entrypoint.sh && \
+    printf 'cd /app/backend\n' >> /entrypoint.sh && \
+    printf 'echo "[init] WORKDIR=$(pwd)"\n' >> /entrypoint.sh && \
+    printf 'echo "[init] Applying Prisma schema (db push)..."\n' >> /entrypoint.sh && \
+    printf 'DATABASE_URL="$DATABASE_URL" npx prisma db push --schema=prisma/schema.prisma --accept-data-loss 2>&1 | tail -3 || echo "[init] Prisma push failed but continuing (dev only)"\n' >> /entrypoint.sh && \
+    printf 'cd /app\n' >> /entrypoint.sh && \
+    printf 'exec concurrently -n "BACKEND,FRONTEND" -c "blue,green" "cd /app/backend && npx tsx watch src/app.ts" "cd /app/frontend && npx vite --host 0.0.0.0 --port 5173"\n' >> /entrypoint.sh && \
+    chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/entrypoint.sh"]

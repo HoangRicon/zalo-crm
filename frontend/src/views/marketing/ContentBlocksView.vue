@@ -33,23 +33,114 @@
         <p>Chưa có khối nội dung nào. Bấm <b>Tạo khối nội dung</b> để bắt đầu.</p>
       </div>
 
-      <div class="cb-grid">
-        <div v-for="b in blocks" :key="b.id" class="cb-card">
-          <img v-if="b.imageUrl" :src="b.imageUrl" class="cb-thumb" />
-          <div class="cb-card-body">
-            <div class="cb-name">{{ b.name }}</div>
-            <div class="cb-text">{{ b.messageText }}</div>
-            <div class="cb-meta">Dùng {{ b.usageCount }} lần</div>
-          </div>
-          <div class="cb-card-actions">
-            <button class="btn btn-ghost btn-sm" title="Sửa" @click="openEdit(b)">
-              <v-icon size="16">mdi-pencil-outline</v-icon>
-            </button>
-            <button class="btn btn-ghost btn-sm danger" title="Xoá" @click="removeBlock(b)">
-              <v-icon size="16">mdi-trash-can-outline</v-icon>
-            </button>
+      <!-- Layout: danh sách (trái) + preview chi tiết (phải) -->
+      <div v-else class="cb-layout">
+        <div class="cb-grid">
+          <div
+            v-for="b in blocks"
+            :key="b.id"
+            class="cb-card"
+            :class="{ 'is-selected': selectedId === b.id }"
+            @click="selectedId = b.id"
+          >
+            <img v-if="b.imageUrl" :src="b.imageUrl" class="cb-thumb" />
+            <div v-else class="cb-thumb cb-thumb-placeholder">
+              <v-icon size="36" color="primary">mdi-text-box-outline</v-icon>
+            </div>
+            <div class="cb-card-body">
+              <div class="cb-name">{{ b.name }}</div>
+              <div class="cb-text">{{ b.messageText }}</div>
+              <div class="cb-meta">
+                <span>· {{ b.textLength }} ký tự</span>
+                <span v-if="b.variables?.length" class="cb-vars">
+                  <span v-for="v in b.variables" :key="v" class="cb-var-chip">{{ varChip(v) }}</span>
+                </span>
+              </div>
+              <div class="cb-meta-row">
+                <span class="cb-meta-pill" :class="{ 'is-active': b.usedByBroadcastCount > 0 }">
+                  <v-icon size="12">mdi-bullhorn-outline</v-icon>
+                  {{ b.usedByBroadcastCount }} broadcast
+                </span>
+                <span class="cb-meta-pill">
+                  <v-icon size="12">mdi-counter</v-icon>
+                  Dùng {{ b.usageCount }} lần
+                </span>
+              </div>
+            </div>
+            <div class="cb-card-actions">
+              <button class="btn btn-ghost btn-sm" title="Sửa" @click.stop="openEdit(b)">
+                <v-icon size="16">mdi-pencil-outline</v-icon>
+              </button>
+              <button class="btn btn-ghost btn-sm danger" title="Xoá" @click.stop="removeBlock(b)">
+                <v-icon size="16">mdi-trash-can-outline</v-icon>
+              </button>
+            </div>
           </div>
         </div>
+
+        <!-- ============ PANEL CHI TIẾT (bên phải) ============ -->
+        <aside class="cb-detail">
+          <div v-if="!detail" class="cb-detail-empty">
+            <v-icon size="36" color="primary">mdi-cursor-default-click-outline</v-icon>
+            <p>Bấm vào 1 khối để xem chi tiết, biến, nơi đang dùng.</p>
+          </div>
+          <template v-else>
+            <header class="cb-detail-head">
+              <div>
+                <div class="cb-detail-title">{{ detail.name }}</div>
+                <div class="cb-detail-sub">
+                  Tạo bởi <b>{{ detail.createdByName || '—' }}</b> · {{ formatDate(detail.createdAt) }}
+                </div>
+              </div>
+              <button class="btn-x" title="Đóng" @click="selectedId = null">
+                <v-icon size="18">mdi-close</v-icon>
+              </button>
+            </header>
+
+            <section class="cb-preview">
+              <img v-if="detail.imageUrl" :src="detail.imageUrl" class="cb-preview-img" />
+              <div class="cb-preview-text">{{ detail.messageText }}</div>
+            </section>
+
+            <section class="cb-section">
+              <div class="cb-section-title">
+                <v-icon size="14">mdi-variable</v-icon> Biến ({{ detail.variables.length }})
+              </div>
+              <div v-if="!detail.variables.length" class="cb-section-empty">Không có biến động.</div>
+              <div v-else class="cb-var-list">
+                <span v-for="v in detail.variables" :key="v" class="cb-var-chip">{{ varChip(v) }}</span>
+              </div>
+            </section>
+
+            <section class="cb-section">
+              <div class="cb-section-title">
+                <v-icon size="14">mdi-bullhorn-outline</v-icon>
+                Đang được dùng bởi ({{ detail.usedByBroadcasts.length }})
+              </div>
+              <div v-if="!detail.usedByBroadcasts.length" class="cb-section-empty">Chưa có broadcast nào dùng.</div>
+              <ul v-else class="cb-bc-list">
+                <li v-for="bc in detail.usedByBroadcasts" :key="bc.id" class="cb-bc-item">
+                  <RouterLink :to="`/marketing/broadcasts?focus=${bc.id}`" class="cb-bc-link">
+                    <span class="cb-bc-name">{{ bc.name }}</span>
+                    <span class="cb-bc-status" :data-status="bc.status">{{ statusLabel(bc.status) }}</span>
+                  </RouterLink>
+                </li>
+              </ul>
+            </section>
+
+            <section class="cb-section">
+              <div class="cb-section-title">
+                <v-icon size="14">mdi-information-outline</v-icon> Thông tin
+              </div>
+              <dl class="cb-info">
+                <dt>ID</dt><dd class="mono">{{ detail.id }}</dd>
+                <dt>Ký tự</dt><dd>{{ detail.textLength }}</dd>
+                <dt>Dùng</dt><dd>{{ detail.usageCount }} lần</dd>
+                <dt>Cập nhật</dt><dd>{{ formatDate(detail.updatedAt) }}</dd>
+              </dl>
+            </section>
+          </template>
+        </aside>
       </div>
     </div>
 
@@ -117,7 +208,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref, watch } from 'vue';
 import { api } from '@/api/index';
 import AiSuggestModal from '@/components/marketing/AiSuggestModal.vue';
 import { useToast } from '@/composables/use-toast';
@@ -129,7 +220,18 @@ const { confirm } = useConfirm();
 const showAiSuggest = ref(false);
 
 interface BlockRow {
-  id: string; name: string; messageText: string; imageUrl: string | null; usageCount: number;
+  id: string;
+  name: string;
+  messageText: string;
+  imageUrl: string | null;
+  usageCount: number;
+  createdByName?: string | null;
+  usedByBroadcastCount?: number;
+  usedByBroadcasts?: Array<{ id: string; name: string; status: string }>;
+  variables?: string[];
+  textLength?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 const blocks = ref<BlockRow[]>([]);
@@ -137,8 +239,41 @@ const loading = ref(true);
 const showForm = ref(false);
 const saving = ref(false);
 const editing = ref<BlockRow | null>(null);
+const selectedId = ref<string | null>(null);
 
 const form = reactive({ name: '', messageText: '', imageUrl: '' });
+
+// Detail đầy đủ fetch khi chọn (gồm usedByBroadcasts full + updatedAt)
+const detailLoading = ref(false);
+const detail = ref<BlockRow | null>(null);
+watch(selectedId, async (id) => {
+  detail.value = null;
+  if (!id) return;
+  detailLoading.value = true;
+  try {
+    const res = await api.get(`/content-blocks/${id}`);
+    detail.value = res.data.block as BlockRow;
+  } catch (e: any) {
+    toast(`Không tải được chi tiết: ${e?.response?.data?.error ?? e?.message ?? 'lỗi'}`, 'error');
+  } finally {
+    detailLoading.value = false;
+  }
+});
+
+function statusLabel(s: string): string {
+  return s === 'active' ? 'Đang chạy' : s === 'paused' ? 'Tạm dừng' : s === 'done' ? 'Hoàn tất' : s;
+}
+
+function varChip(v: string): string {
+  return `{{${v}}}`;
+}
+
+function formatDate(s?: string): string {
+  if (!s) return '—';
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s;
+  return d.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
 
 /** Sprint 2 R5 2026-07-21: Khi user chọn 1 suggestion từ AiSuggestModal, mở form create
  * với name + messageText đã fill sẵn. */
@@ -235,15 +370,57 @@ onMounted(load);
 .actions { display: flex; gap: 8px; flex-shrink: 0; }
 .cb-body { padding: 16px 20px; }
 .cb-empty { text-align: center; color: var(--text-secondary, #888); padding: 32px 0; }
-.cb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
-.cb-card { border: 1px solid var(--border, #e5e4e7); border-radius: 10px; overflow: hidden; background: var(--surface, #fff); display: flex; flex-direction: column; }
+.cb-layout { display: grid; grid-template-columns: 1fr 360px; gap: 16px; align-items: flex-start; }
+.cb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; min-width: 0; }
+.cb-card { border: 1px solid var(--border, #e5e4e7); border-radius: 10px; overflow: hidden; background: var(--surface, #fff); display: flex; flex-direction: column; cursor: pointer; transition: border-color .12s, box-shadow .12s; }
+.cb-card:hover { border-color: var(--accent, #0e445a); }
+.cb-card.is-selected { border-color: var(--accent, #0e445a); box-shadow: 0 0 0 2px rgba(14,68,90,.18); }
 .cb-thumb { width: 100%; height: 120px; object-fit: cover; }
+.cb-thumb-placeholder { display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg,#eef3f6 0%, #dbe6ec 100%); }
 .cb-card-body { padding: 10px 12px; flex: 1; }
 .cb-name { font-weight: 700; font-size: 14px; }
 .cb-text { font-size: 12.5px; color: var(--text-secondary, #666); margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.cb-meta { font-size: 11.5px; color: var(--text-secondary, #999); margin-top: 6px; }
+.cb-meta { font-size: 11.5px; color: var(--text-secondary, #999); margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cb-vars { display: inline-flex; flex-wrap: wrap; gap: 3px; }
+.cb-var-chip { display: inline-block; padding: 1px 6px; background: #eef2ff; color: #4338ca; border-radius: 4px; font-family: 'JetBrains Mono', Menlo, monospace; font-size: 10.5px; }
+.cb-meta-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.cb-meta-pill { display: inline-flex; align-items: center; gap: 3px; font-size: 10.5px; padding: 2px 6px; background: #f1f5f9; color: #64748b; border-radius: 999px; }
+.cb-meta-pill.is-active { background: #dcfce7; color: #166534; }
 .cb-card-actions { display: flex; justify-content: flex-end; gap: 4px; padding: 6px 10px; border-top: 1px solid var(--border, #eee); }
 .danger { color: #a12318; }
+
+/* Detail panel */
+.cb-detail { position: sticky; top: 16px; border: 1px solid var(--border, #e5e4e7); border-radius: 10px; background: var(--surface, #fff); overflow: hidden; }
+.cb-detail-empty { padding: 32px 20px; text-align: center; color: var(--text-secondary, #888); }
+.cb-detail-head { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 14px; border-bottom: 1px solid var(--border, #eee); background: #fafbfc; }
+.cb-detail-title { font-weight: 700; font-size: 15px; }
+.cb-detail-sub { font-size: 11.5px; color: var(--text-secondary, #888); margin-top: 2px; }
+.cb-preview { padding: 12px 14px; border-bottom: 1px solid var(--border, #eee); }
+.cb-preview-img { width: 100%; max-height: 200px; object-fit: cover; border-radius: 6px; margin-bottom: 8px; }
+.cb-preview-text { font-size: 13px; white-space: pre-wrap; word-break: break-word; background: #f8fafc; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border, #eef0f3); font-family: inherit; }
+.cb-section { padding: 10px 14px; border-bottom: 1px solid var(--border, #f3f4f6); }
+.cb-section:last-child { border-bottom: none; }
+.cb-section-title { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--text-secondary, #555); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+.cb-section-empty { font-size: 12px; color: var(--text-secondary, #999); padding: 4px 0; }
+.cb-var-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.cb-bc-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 3px; }
+.cb-bc-item { font-size: 12.5px; }
+.cb-bc-link { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; text-decoration: none; color: inherit; }
+.cb-bc-link:hover { background: #f1f5f9; }
+.cb-bc-name { font-weight: 600; }
+.cb-bc-status { font-size: 10.5px; padding: 2px 7px; border-radius: 999px; background: #f1f5f9; color: #475569; }
+.cb-bc-status[data-status="active"] { background: #dcfce7; color: #166534; }
+.cb-bc-status[data-status="paused"] { background: #fef3c7; color: #92400e; }
+.cb-bc-status[data-status="done"] { background: #e0e7ff; color: #3730a3; }
+.cb-info { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12px; margin: 0; }
+.cb-info dt { color: var(--text-secondary, #888); }
+.cb-info dd { margin: 0; word-break: break-word; }
+.cb-info dd.mono { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 11px; }
+
+@media (max-width: 900px) {
+  .cb-layout { grid-template-columns: 1fr; }
+  .cb-detail { position: static; }
+}
 
 .cb-overlay { position: fixed; inset: 0; background: rgba(20, 20, 30, 0.45); display: flex; align-items: center; justify-content: center; z-index: 1000; }
 .cb-modal { background: var(--surface, #fff); border-radius: 12px; padding: 18px 20px; width: 560px; max-width: calc(100vw - 32px); max-height: calc(100vh - 64px); overflow: auto; }

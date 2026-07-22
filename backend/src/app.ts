@@ -102,7 +102,8 @@ import { eventBuffer } from './shared/event-buffer.js';
 import { systemNotifyRoutes } from './modules/system-notifications/system-notify-routes.js';
 import { userCreateWithZaloRoutes } from './modules/system-notifications/user-create-with-zalo-routes.js';
 // Lead Pool → extension bundle (src/_ee/lead-pool).
-// Facebook Lead Ads (Multi-Source + Form ingestion) → extension bundle (src/_ee/facebook).
+import { facebookLeadAdsRoutes } from './modules/lead-ads/facebook-lead-ads-routes.js';
+import { zaloAdsRoutes } from './modules/lead-ads/zalo-ads-routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -345,6 +346,29 @@ async function bootstrap() {
   await app.register(friendRoutes);
   await app.register(profileRoutes);
   await app.register(credentialRoutes);
+  // Message Templates (🟢 Community extension 2026-07-22)
+  const { messageTemplateRoutes } = await import('./modules/templates/message-template-routes.js');
+  await app.register(messageTemplateRoutes);
+  // Lead Pool (🟢 Community extension 2026-07-22)
+  const { leadPoolRoutes } = await import('./modules/lead-pool/lead-pool-routes.js');
+  await app.register(leadPoolRoutes);
+
+  // Auto Reply Rules (🟢 Community extension 2026-07-22)
+  const { autoReplyRoutes } = await import('./modules/auto-reply/auto-reply-routes.js');
+  await app.register(autoReplyRoutes);
+
+  // Scheduled Template Sends (🟢 Community extension 2026-07-22)
+  const { scheduledTemplateSendRoutes } = await import('./modules/templates/scheduled-template-send-routes.js');
+  await app.register(scheduledTemplateSendRoutes);
+
+  // Sequences (🟢 Community extension 2026-07-22)
+  const { sequenceRoutes } = await import('./modules/sequences/sequence-routes.js');
+  await app.register(sequenceRoutes);
+
+  // Automation Reports (🟢 Community extension 2026-07-22)
+  const { automationReportRoutes } = await import('./modules/reports/automation-report-routes.js');
+  await app.register(automationReportRoutes);
+
   // Sprint 3 R9 2026-07-21: Churn Risk Detector (🟢 Community)
   const { churnRoutes } = await import('./modules/churn-risk/churn-routes.js');
   await app.register(churnRoutes);
@@ -361,6 +385,12 @@ async function bootstrap() {
   await app.register(pushRoutes);
   const { startPushCleanupCron } = await import('./modules/push/push-cron.js');
   startPushCleanupCron();
+  // 2026-07-22: Scheduled template send cron
+  const { startScheduledSendCron } = await import('./modules/templates/scheduled-template-send-cron.js');
+  startScheduledSendCron();
+  // 2026-07-22: Sequence executor cron
+  const { startSequenceExecutor } = await import('./modules/sequences/sequence-executor.js');
+  startSequenceExecutor();
   // Sprint 8 R13 2026-07-21: Outbound webhooks + audit log + backup/restore.
   const { webhookRoutes } = await import('./modules/webhooks/webhook-routes.js');
   await app.register(webhookRoutes);
@@ -370,6 +400,10 @@ async function bootstrap() {
   await app.register(auditRoutes);
   const { backupRoutes } = await import('./modules/backup/backup-routes.js');
   await app.register(backupRoutes);
+
+  // Lead Ads — Facebook & Zalo
+  await app.register(facebookLeadAdsRoutes);
+  await app.register(zaloAdsRoutes);
 
   // Open-core: extension route registrations (no-op in Community edition).
   await ee?.registerExtensionRoutes?.(app);

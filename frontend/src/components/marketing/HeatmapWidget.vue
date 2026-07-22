@@ -48,7 +48,7 @@ const matrix = ref<Array<{ hour: number; dayOfWeek: number; rate: number; count:
 
 onMounted(async () => {
   try {
-    const res = await api.get(`/api/v1/broadcast/heatmap?days=${props.days}`);
+    const res = await api.get(`/broadcast/heatmap?days=${props.days}`);
     matrix.value = res.data.matrix ?? [];
     totalBroadcasts.value = res.data.totalBroadcasts ?? 0;
   } catch (e) {

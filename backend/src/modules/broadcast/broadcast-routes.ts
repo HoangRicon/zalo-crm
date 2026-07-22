@@ -25,6 +25,9 @@ interface JobBody {
   sourceType?: 'customer_list' | 'friends';
   customerListId?: string;
   zaloAccountId?: string;
+  // 2026-07-22: Multi-account broadcast
+  zaloAccountIds?: string[];
+  sendMode?: 'duplicate' | 'round_robin';
   messageText?: string;
   imageUrl?: string | null;
   // Khối nội dung (spin content) — khi có, cron xoay vòng nội dung từ đây thay vì
@@ -140,12 +143,19 @@ export async function broadcastRoutes(app: FastifyInstance): Promise<void> {
     const schedErr = validateSchedule(b);
     if (schedErr) return reply.status(400).send({ error: schedErr });
 
-    const [nick, blockCount] = await Promise.all([
-      prisma.zaloAccount.findFirst({ where: { id: b.zaloAccountId ?? '', orgId: user.orgId }, select: { id: true } }),
+    // 2026-07-22: Multi-account support — accept zaloAccountIds array or fallback to zaloAccountId
+    const accountIds = Array.isArray(b.zaloAccountIds) && b.zaloAccountIds.length > 0
+      ? b.zaloAccountIds
+      : (b.zaloAccountId ? [b.zaloAccountId] : []);
+    if (accountIds.length === 0) return reply.status(400).send({ error: 'zaloAccount_required' });
+
+    const [nicks, blockCount] = await Promise.all([
+      prisma.zaloAccount.findMany({ where: { id: { in: accountIds }, orgId: user.orgId }, select: { id: true } }),
       blockIds.length ? prisma.contentBlock.count({ where: { id: { in: blockIds }, orgId: user.orgId } }) : Promise.resolve(0),
     ]);
-    if (!nick) return reply.status(400).send({ error: 'zaloAccount_not_found' });
+    if (nicks.length !== accountIds.length) return reply.status(400).send({ error: 'zaloAccount_not_found' });
     if (blockIds.length && blockCount !== blockIds.length) return reply.status(400).send({ error: 'contentBlock_not_found' });
+    const nick = nicks[0]; // primary nick for friend-source check
 
     // Nguồn tệp KH cần customerListId hợp lệ; nguồn friends không cần (lấy bạn bè của nick).
     let customerListId: string | null = null;
@@ -173,6 +183,8 @@ export async function broadcastRoutes(app: FastifyInstance): Promise<void> {
         sourceType,
         customerListId,
         zaloAccountId: nick.id,
+        zaloAccountIds: accountIds.length > 1 ? (accountIds as unknown as object) : undefined,
+        sendMode: b.sendMode || 'duplicate',
         messageText: blockIds.length ? '' : b.messageText!,
         imageUrl: blockIds.length ? null : b.imageUrl?.trim() || null,
         contentBlockIds: blockIds,

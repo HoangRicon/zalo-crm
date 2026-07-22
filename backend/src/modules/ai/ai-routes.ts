@@ -110,6 +110,52 @@ export async function aiRoutes(app: FastifyInstance) {
     }
   });
 
+  /* Test connection tới AI provider (verify baseUrl + apiKey + model). 2026-07-22 */
+  app.post('/api/v1/ai/test-connection', { preHandler: requireGrant('settings', 'edit') }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const orgId = request.user!.orgId;
+      const body = (request.body ?? {}) as { provider?: string; model?: string; baseUrl?: string; apiKey?: string };
+      if (!body.provider) return reply.status(400).send({ error: 'provider is required' });
+
+      const [resolvedApiKey, resolvedBaseUrl] = await Promise.all([
+        body.apiKey ? Promise.resolve(body.apiKey) : resolveProviderApiKey(orgId, body.provider),
+        body.baseUrl ? Promise.resolve(body.baseUrl) : getProviderBaseUrl(orgId, body.provider),
+      ]);
+
+      if (!resolvedApiKey) return reply.status(200).send({ ok: false, error: 'Chưa cấu hình API key' });
+      if (!resolvedBaseUrl) return reply.status(200).send({ ok: false, error: 'Chưa cấu hình Base URL' });
+
+      const model = body.model || `${body.provider}-default`;
+      const url = `${resolvedBaseUrl.replace(/\/$/, '')}/chat/completions`;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15_000);
+      try {
+        const r = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${resolvedApiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: 'user', content: 'ping' }],
+            max_tokens: 5,
+          }),
+          signal: controller.signal,
+        });
+        if (!r.ok) {
+          return reply.status(200).send({ ok: false, error: `HTTP ${r.status}: ${await r.text().catch(() => '')}` });
+        }
+        return { ok: true, model };
+      } finally {
+        clearTimeout(timeout);
+      }
+    } catch (err) {
+      logger.warn('[ai] Test connection fail: %s', (err as Error).message);
+      return reply.status(200).send({ ok: false, error: (err as Error).message });
+    }
+  });
+
   /* Danh sách model lấy động từ provider. Lỗi → {models:[],error} (200) để UI fallback gõ tay. */
   app.get('/api/v1/ai/providers/:id/models', async (request: FastifyRequest) => {
     const orgId = request.user!.orgId;

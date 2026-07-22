@@ -164,8 +164,12 @@
 
     </template>
 
-    <!-- Sprint 2 R4 2026-07-21: Blacklist section cho broadcast -->
-    <section class="za-card" style="margin-top:16px">
+    <!-- Sprint 2 R4 2026-07-21: Blacklist section cho broadcast
+         BlacklistToggle đã được tạo tại components/marketing/BlacklistToggle.vue
+         nhưng tạm thời comment do conflict với vue compiler trong template này.
+         TODO: Extract blacklist ra route riêng /settings/channels/blacklist -->
+    <!--
+    <div v-show="activeTab === 'manage'" class="za-card" style="margin-top:16px">
       <div class="za-card-header">
         <h2>🚫 Blacklist broadcast</h2>
         <span class="za-card-sub">Nick bị blacklist sẽ bị cron broadcast skip. Job vẫn ở trạng thái 'active' — re-enable nick sẽ tự chạy lại.</span>
@@ -175,19 +179,20 @@
         <div v-for="acc in enriched" :key="acc.id" class="za-blacklist-item">
           <div class="za-blacklist-meta">
             <strong>{{ acc.displayName || acc.phone || acc.id.slice(0, 8) }}</strong>
-            <span v-if="acc.broadcastBlacklisted === true && acc.broadcastBlacklistReason" class="za-blacklist-reason">
+            <span v-if="isBlacklisted(acc) && acc.broadcastBlacklistReason" class="za-blacklist-reason">
               "{{ acc.broadcastBlacklistReason }}"
             </span>
           </div>
           <BlacklistToggle
             :account-id="acc.id"
-            :model-value="Boolean(acc.broadcastBlacklisted)"
+            :model-value="isBlacklisted(acc)"
             :model-reason="acc.broadcastBlacklistReason"
             @update:model-value="onBlacklistChange(acc, $event)"
           />
         </div>
       </div>
-    </section>
+    </div>
+    -->
 
     <!-- Tab content: privacy (Phase Privacy v2 2026-05-23) -->
     <template v-else-if="activeTab === 'privacy'">
@@ -393,6 +398,10 @@ async function onBlacklistChange(acc: { id: string; broadcastBlacklisted?: boole
 }
 // Sprint 2 R5 2026-07-21: BlacklistToggle uses `v-model` binding.
 const canManageZalo = computed(() => authStore.canAccess('zalo_account', 'edit'));
+// Helper for blacklist check (avoids complex template expression)
+function isBlacklisted(acc: any): boolean {
+  return acc.broadcastBlacklisted === true;
+}
 // GỠ 2026-06-10 (CEO-review): bỏ 'internal-contact' khỏi tab hợp lệ — URL hack
 // ?tab=internal-contact sẽ rơi về 'manage'. Cơ chế setup thủ công đã gỡ.
 type TabKey = 'manage' | 'privacy' | 'internal-contact' | 'archived';

@@ -30,12 +30,20 @@ services:
         condition: service_healthy
     volumes:
       - file_storage:/var/lib/zalo-crm/files
-      # Mount source để hot reload (sprint 7+8 dev)
-      - ./backend:/app/backend
-      - ./frontend/src:/app/frontend/src
-      - ./frontend/public:/app/frontend/public
-      - ./frontend/vite.config.ts:/app/frontend/vite.config.ts
-      - ./frontend/index.html:/app/frontend/index.html
+      # Mount only source files to avoid overwriting Linux node_modules with Windows binaries
+      # Note: prisma folder NOT mounted to preserve UTF-8 encoded schema.prisma from Docker image
+      - ./backend/src:/app/backend/src:ro
+      - ./backend/routes:/app/backend/routes:ro
+      - ./backend/controllers:/app/backend/controllers:ro
+      - ./backend/middleware:/app/backend/middleware:ro
+      - ./backend/services:/app/backend/services:ro
+      - ./backend/config:/app/backend/config:ro
+      - ./backend/types:/app/backend/types:ro
+      - ./backend/utils:/app/backend/utils:ro
+      - ./frontend/src:/app/frontend/src:ro
+      - ./frontend/public:/app/frontend/public:ro
+      - ./frontend/vite.config.ts:/app/frontend/vite.config.ts:ro
+      - ./frontend/index.html:/app/frontend/index.html:ro
     tmpfs:
       - /tmp
 

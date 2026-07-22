@@ -71,7 +71,7 @@ function isActive(to: string): boolean {
 }
 .ce-mkt-link:hover { background: rgba(15, 111, 160, 0.08); }
 .ce-mkt-link.is-active { background: rgba(15, 111, 160, 0.14); color: #0e445a; font-weight: 600; }
-.ce-mkt-content { flex: 1 1 auto; min-width: 0; overflow: auto; }
+.ce-mkt-content { flex: 1 1 auto; min-width: 0; min-height: 0; height: 100%; overflow: auto; }
 
 @media (max-width: 768px) {
   .ce-marketing-shell { flex-direction: column; }

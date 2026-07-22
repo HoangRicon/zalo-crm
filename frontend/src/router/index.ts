@@ -156,16 +156,21 @@ const routes: RouteRecordRaw[] = [
       { path: 'crm/appointments', name: 'Settings.Appointments', component: () => import('@/views/settings/AppointmentSettingsPage.vue'), meta: { resource: 'settings' } },
       { path: 'crm/stuck',       name: 'Settings.Stuck',       component: () => import('@/views/settings/SettingsComingSoon.vue'), props: { feature: 'stuck' }, meta: { resource: 'settings' } },
       { path: 'crm/folders',     name: 'Settings.Folders',     component: () => import('@/views/settings/SettingsComingSoon.vue'), props: { feature: 'folders' }, meta: { resource: 'settings' } },
-      { path: 'crm/templates',   name: 'Settings.Templates',   component: () => import('@/views/settings/SettingsComingSoon.vue'), props: { feature: 'templates' }, meta: { resource: 'settings' } },
-      // Lead Pool routes → extension bundle (eeSettingsChildren).
+      { path: 'crm/templates',   name: 'Settings.Templates',   component: () => import('@/views/settings/MessageTemplatesPage.vue'), meta: { resource: 'settings' } },
+      // Lead Pool — Community extension 2026-07-22.
+      { path: 'crm/lead-pool', name: 'Settings.LeadPool', component: () => import('@/views/settings/LeadPoolSettingsPage.vue'), meta: { resource: 'settings' } },
       // M53 2026-05-30 — Trợ Lý AI Virtual Chat
       { path: 'crm/ai-assistant',      name: 'Settings.AiAssistant',     component: () => import('@/views/settings/AiAssistantPage.vue'), meta: { resource: 'settings' } },
       // 🔌 Channels & Integrations
       { path: 'channels/zalo',             name: 'Settings.ZaloAccounts',    component: () => import('@/views/ZaloAccountsView.vue'), meta: { resource: 'zalo_account' } },
       // 2026-06-18 — Trần SDK dời sang Cài đặt (gate 'settings', KHÔNG 'zalo_account') → sale ko đổi được.
       { path: 'channels/sdk-limits',       name: 'Settings.SdkLimits',       component: () => import('@/views/settings/SdkLimitsSettingsPage.vue'), meta: { resource: 'settings' } },
-      // Facebook Lead Ads route → extension bundle (eeSettingsChildren).
-      { path: 'channels/rate-limit',       name: 'Settings.RateLimit',       component: () => import('@/views/settings/SettingsComingSoon.vue'), props: { feature: 'rate-limit' }, meta: { resource: 'settings' } },
+      // 2026-07-22 — Lead Ads: Facebook Lead Ads + Zalo Ads
+      { path: 'channels/lead-ads',         name: 'Settings.LeadAds',         component: () => import('@/views/settings/LeadAdsPage.vue'), meta: { resource: 'settings' } },
+      // 2026-07-22 — Broadcast blacklist route (tách riêng khỏi ZaloAccountsView do template conflict)
+      { path: 'channels/broadcast-blacklist', name: 'Settings.BroadcastBlacklist', component: () => import('@/views/settings/BroadcastBlacklistPage.vue'), meta: { resource: 'settings' } },
+      // Redirect rate-limit placeholder → active SdkLimits page (same feature).
+      { path: 'channels/rate-limit',       redirect: '/settings/channels/sdk-limits' },
       // Automation tech-settings route → extension bundle (eeSettingsChildren).
       { path: 'channels/integrations',     name: 'Settings.Integrations',    component: () => import('@/views/IntegrationsView.vue'), meta: { resource: 'settings' } },
 
@@ -173,7 +178,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'dev/api',           name: 'Settings.Api',          component: () => import('@/views/ApiSettingsView.vue'), meta: { resource: 'webhook' } },
       { path: 'dev/public-token',  name: 'Settings.PublicToken',  component: () => import('@/views/settings/SettingsComingSoon.vue'), props: { feature: 'public-token' }, meta: { resource: 'settings' } },
       { path: 'dev/feature-flags', name: 'Settings.FeatureFlags', component: () => import('@/views/settings/SettingsComingSoon.vue'), props: { feature: 'feature-flags' }, meta: { resource: 'settings' } },
-      { path: 'dev/backup',        name: 'Settings.Backup',       component: () => import('@/views/settings/SettingsComingSoon.vue'), props: { feature: 'backup' }, meta: { resource: 'settings' } },
+      { path: 'dev/backup',        name: 'Settings.Backup',       component: () => import('@/views/settings/BackupPage.vue'), meta: { resource: 'settings' } },
       ...eeSettingsChildren,
     ],
   },
@@ -238,9 +243,17 @@ const routes: RouteRecordRaw[] = [
           { path: 'pipeline', name: 'CE.Pipeline', component: () => import('@/views/marketing/PipelineKanbanView.vue'), meta: { requiresAuth: true } },
           // Sprint 5 R11 2026-07-21: AI Campaign Studio.
           { path: 'ai-studio', name: 'CE.AiStudio', component: () => import('@/views/marketing/AiCampaignStudioView.vue'), meta: { requiresAuth: true } },
+          // Lead Pool Dashboard — Community extension 2026-07-22.
+          { path: 'lead-pool', name: 'CE.LeadPool', component: () => import('@/views/marketing/LeadPoolView.vue'), meta: { requiresAuth: true } },
+          // Sequences (Drip Campaigns) — Community extension 2026-07-22.
+          { path: 'sequences', name: 'CE.Sequences', component: () => import('@/views/marketing/SequencesView.vue'), meta: { requiresAuth: true } },
         ],
       } as RouteRecordRaw]
     : []),
+  // Lead Pool Dashboard — standalone route 2026-07-22 (NOT inside /marketing shell).
+  { path: '/lead-pool', name: 'LeadPool', component: () => import('@/views/marketing/LeadPoolView.vue'), meta: { requiresAuth: true } },
+  // Automation Hub (🟢 Community extension 2026-07-22) — /automation standalone
+  { path: '/automation', name: 'Automation', component: () => import('@/views/automation/AutomationHubView.vue'), meta: { requiresAuth: true } },
   {
     path: '/friends',
     name: 'Friends',
@@ -389,13 +402,13 @@ const ROUTE_TITLES: Record<string, string> = {
   'Settings.Appointments': 'Lịch hẹn & Nhắc hẹn',
   'Settings.Stuck': 'KH bị kẹt',
   'Settings.Folders': 'Thư mục',
-  'Settings.Templates': 'Mẫu tin',
+  'Settings.Templates': 'Mẫu tin nhắn',
   'Settings.LeadPool': 'Lead Pool',
   'Settings.AiAssistant': 'Trợ lý AI',
   'Settings.ZaloAccounts': 'Tài khoản Zalo',
   'Settings.FacebookLeadAds': 'Facebook Lead Ads',
   'Settings.ZaloAdsLeadForm': 'Zalo Ads Lead Form',
-  'Settings.RateLimit': 'Giới hạn tốc độ',
+  'Settings.SdkLimits': 'Trần an toàn SDK Zalo',
   'Settings.Automation': 'Cài đặt Automation',
   'Settings.Integrations': 'Tích hợp',
   'Settings.Api': 'API & Webhook',

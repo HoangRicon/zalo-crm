@@ -8,6 +8,7 @@
  */
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { exportOrgBackup, dryRunRestore, applyRestore, listBackups, getBackupFile } from './backup-service.js';
+import { authMiddleware } from '../auth/auth-middleware.js';
 import { logger } from '../../shared/utils/logger.js';
 
 function requireOwner(request: FastifyRequest, reply: FastifyReply): boolean {
@@ -19,6 +20,11 @@ function requireOwner(request: FastifyRequest, reply: FastifyReply): boolean {
 }
 
 export async function backupRoutes(app: FastifyInstance): Promise<void> {
+  // Fix 2026-07-22: trang backup lỗi 500 "Cannot read properties of null (reading 'role')" do
+  // THIẾU authMiddleware preHandler. Mọi module route khác (audit, webhooks, broadcasts…)
+  // đều có dòng này đầu file; backup-routes bị thiếu → request.user không được populate
+  // → requireOwner() đọc .role trên null → 500.
+  app.addHook('preHandler', authMiddleware);
   // POST /api/v1/backup/export — tạo backup record trả filename.
   app.post('/api/v1/backup/export', async (request: FastifyRequest, reply: FastifyReply) => {
     if (!requireOwner(request, reply)) return;

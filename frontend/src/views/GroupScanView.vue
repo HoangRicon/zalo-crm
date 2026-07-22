@@ -279,6 +279,8 @@
           :search="memberSearch"
           item-value="id"
           density="comfortable"
+          fixed-header
+          height="calc(100vh - 320px)"
           class="mt-2"
         >
           <template #item.member="{ item }">

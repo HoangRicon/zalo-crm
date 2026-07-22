@@ -101,9 +101,9 @@
         :loading="loading"
         :disabled="!isValid"
         prepend-icon="mdi-content-save"
-        @click="onSave"
+        @click="onSaveAndClose"
       >
-        {{ template?.id ? 'Lưu thay đổi' : 'Tạo mẫu tin' }}
+        {{ template?.id ? 'Lưu &amp; Đóng' : 'Lưu &amp; Đóng' }}
       </v-btn>
     </div>
   </div>
@@ -214,9 +214,8 @@ function getVarChip(key: string) {
   return `{{${key}}}`;
 }
 
-function onSave() {
+function onSaveAndClose() {
   if (!isValid.value) return;
-
   const shortcut = form.value.shortcut?.trim();
   emit('save', {
     name: form.value.name.trim(),

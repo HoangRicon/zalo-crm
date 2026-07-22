@@ -623,6 +623,17 @@ export async function reportAnalyticsRoutes(app: FastifyInstance): Promise<void>
       ]);
       const failedRate24h = totalEvents24h > 0 ? Math.round((failedEvents24h / totalEvents24h) * 1000) / 10 : 0;
 
+      // sent per sequence: aggregate from AutomationExecutionLog rows where jobId = sequence.id
+      const sequenceIds = sequences.map((s) => s.id);
+      const sentAgg = sequenceIds.length
+        ? await prisma.automationExecutionLog.groupBy({
+            by: ['jobId'],
+            where: { orgId, jobId: { in: sequenceIds } },
+            _sum: { sent: true },
+          })
+        : [];
+      const sentMap = new Map(sentAgg.map((r) => [r.jobId, N(r._sum.sent)]));
+
       const sequencesOut = sequences.map((s) => {
         const enr = N(s.enrolledCountCached);
         const rep = N(s.replyCountCached);
@@ -630,24 +641,41 @@ export async function reportAnalyticsRoutes(app: FastifyInstance): Promise<void>
           id: s.id,
           name: s.name,
           enrolled: enr,
-          sent: 0, // TODO: deepen — sent count not cached on sequence
+          sent: sentMap.get(s.id) ?? 0,
           replied: rep,
           completed: N(s.completedCountCached),
           replyRatePct: enr > 0 ? Math.round((rep / enr) * 1000) / 10 : 0,
         };
       });
 
-      // skipReasons — AutomationEventLog where eventType contains 'skip'
+      // skipReasons — categorize by eventType prefix
+      // 'skip_throttle' → throttle, 'skip_capacity' → capacity, 'skip_cfg_*' → config_error, else benign
       const skipGroups = await prisma.automationEventLog.groupBy({
         by: ['eventType'],
         where: { orgId, eventType: { contains: 'skip', mode: 'insensitive' } },
         _count: true,
       });
-      const skipReasons = skipGroups.map((g) => ({
+      const categorizeSkip = (eventType: string): 'throttle' | 'capacity' | 'config_error' | 'benign' => {
+        if (/throttle|rate|limit/i.test(eventType)) return 'throttle';
+        if (/capacity|backpressure|queue/i.test(eventType)) return 'capacity';
+        if (/cfg|config|invalid|missing/i.test(eventType)) return 'config_error';
+        return 'benign';
+      };
+      const skipReasons = skipGroups.map((g: { eventType: string; _count: number }) => ({
         reason: g.eventType,
         count: g._count,
-        category: 'benign' as 'throttle' | 'capacity' | 'config_error' | 'benign', // TODO: deepen — categorize
+        category: categorizeSkip(g.eventType),
       }));
+
+      // friendAcceptRate 7d — from FriendshipAttempt.sentAt (when invite sent) + decidedAt (when accepted)
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600000);
+      const [friendSent7d, friendAccepted7d] = await Promise.all([
+        prisma.friendshipAttempt.count({ where: { orgId, sentAt: { gte: sevenDaysAgo } } }),
+        prisma.friendshipAttempt.count({ where: { orgId, sentAt: { gte: sevenDaysAgo }, state: 'accepted' } }),
+      ]);
+      const friendAcceptRate = friendSent7d > 0
+        ? Math.round((friendAccepted7d / friendSent7d) * 1000) / 10
+        : 0;
 
       // careOutcomes — CareSession groupBy closedReason where state closed
       const careGroups = await prisma.careSession.groupBy({
@@ -678,6 +706,27 @@ export async function reportAnalyticsRoutes(app: FastifyInstance): Promise<void>
         };
       });
 
+      // workerLagSec — max(startedAt) của AutomationExecutionLog còn 'running' quá 5 phút
+      // coi là "stuck"; còn lại lag = now() - last completedAt trung bình (giây).
+      const recentCompleted = await prisma.automationExecutionLog.findMany({
+        where: { orgId, status: 'completed', completedAt: { not: null } },
+        orderBy: { completedAt: 'desc' },
+        take: 30,
+        select: { completedAt: true },
+      });
+      const stuckThreshold = new Date(Date.now() - 5 * 60 * 1000);
+      const [runningCount] = await Promise.all([
+        prisma.automationExecutionLog.count({ where: { orgId, status: 'running' } }),
+      ]);
+      let workerLagSec = 0;
+      if (recentCompleted.length > 0) {
+        const totalLag = recentCompleted.reduce((sum, r) => sum + ((now().getTime() - N(r.completedAt)) || 0), 0);
+        workerLagSec = Math.round((totalLag / recentCompleted.length) / 1000);
+      }
+      const stuckTasks = await prisma.automationExecutionLog.count({
+        where: { orgId, status: 'running', startedAt: { lt: stuckThreshold } },
+      });
+
       return {
         from,
         to,
@@ -685,12 +734,13 @@ export async function reportAnalyticsRoutes(app: FastifyInstance): Promise<void>
           activeSequences,
           enrolled,
           replyRate,
-          friendAcceptRate: 0, // TODO: deepen
+          friendAcceptRate,
         },
         health: {
-          workerLagSec: 0, // TODO: deepen — worker queue lag
-          stuckTasks: 0, // TODO: deepen
+          workerLagSec,
+          stuckTasks,
           failedRate24h,
+          runningTasks: runningCount,
         },
         sequences: sequencesOut,
         skipReasons,
@@ -702,6 +752,8 @@ export async function reportAnalyticsRoutes(app: FastifyInstance): Promise<void>
       return reply.status(500).send({ error: 'Failed to fetch automation report' });
     }
   });
+
+  function now(): Date { return new Date(); }
 
   // ─────────────────────────────────────────────────────────────────────────
   // 7. GET /api/v1/reports/engagement

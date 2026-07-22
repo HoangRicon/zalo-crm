@@ -369,6 +369,11 @@ async function bootstrap() {
   const { automationReportRoutes } = await import('./modules/reports/automation-report-routes.js');
   await app.register(automationReportRoutes);
 
+  // Triggers (🟢 Community extension 2026-07-22) — declarative records only.
+  // Engine/pipeline side-effects still come from EE bundle if installed.
+  const { triggerRoutes } = await import('./modules/triggers/trigger-routes.js');
+  await app.register(triggerRoutes);
+
   // Sprint 3 R9 2026-07-21: Churn Risk Detector (🟢 Community)
   const { churnRoutes } = await import('./modules/churn-risk/churn-routes.js');
   await app.register(churnRoutes);

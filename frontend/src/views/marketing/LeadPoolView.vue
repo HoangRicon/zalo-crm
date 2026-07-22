@@ -90,10 +90,12 @@
           :page="poolPage"
           :limit="poolLimit"
           :total-pages="poolTotalPages"
+          :claiming-id="claimingId"
           @update:page="poolPage = $event"
           @update:search="onPoolSearch"
           @update:source="onPoolSourceChange"
           @row-click="onLeadClick"
+          @claim="onClaimLead"
         />
       </div>
 
@@ -428,6 +430,35 @@ watch(activeTab, (tab) => {
 watch(poolPage, () => fetchPoolLeads());
 watch(distPage, () => fetchDistributions());
 watch(reqPage, () => fetchRequests());
+
+// 2026-07-22 fix-zalo-crm-mvp-gaps#3: claim lead from pool
+const claimingId = ref<string | null>(null);
+const claimError = ref('');
+
+async function onClaimLead(lead: PooledLead) {
+  if (!confirm(`Xin lead "${lead.fullName || lead.phone}" vào danh sách của anh/chị?`)) return;
+  claimingId.value = lead.id;
+  claimError.value = '';
+  try {
+    const { requestLead } = await import('@/api/lead-pool');
+    await requestLead();
+    // Refresh list + stats
+    await Promise.all([fetchPoolLeads(), fetchStats()]);
+  } catch (e: any) {
+    // BE error code (vd 'in_cooldown', 'quota_exceeded', 'no_leads_in_pool') → thân thiện hơn
+    const code = e?.response?.data?.error || '';
+    const friendly: Record<string, string> = {
+      lead_pool_disabled: 'Lead Pool đang tắt',
+      in_cooldown: 'Anh/chị đang trong thời gian cooldown',
+      quota_exceeded: 'Hết quota hôm nay',
+      no_leads_in_pool: 'Pool đã hết lead',
+    };
+    claimError.value = friendly[code] || code || e?.message || 'Lỗi claim lead';
+  } finally {
+    claimingId.value = null;
+    setTimeout(() => (claimError.value = ''), 5000);
+  }
+}
 
 onMounted(() => {
   fetchStats();

@@ -36,14 +36,15 @@
             <th>Ngày vào pool</th>
             <th>Tự động trả</th>
             <th>Lần chia</th>
+            <th>Hành động</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading && leads.length === 0">
-            <td colspan="7" class="lpt-empty">Đang tải...</td>
+            <td colspan="8" class="lpt-empty">Đang tải...</td>
           </tr>
           <tr v-else-if="!loading && leads.length === 0">
-            <td colspan="7" class="lpt-empty">
+            <td colspan="8" class="lpt-empty">
               <v-icon size="32">mdi-inbox-outline</v-icon>
               <p>Không có lead nào trong pool</p>
             </td>
@@ -84,6 +85,15 @@
             </td>
             <td>
               <span class="lpt-count">{{ lead.pooledCount }}</span>
+            </td>
+            <td @click.stop>
+              <button
+                class="lpt-claim-btn"
+                :disabled="claimingId === lead.id"
+                @click="$emit('claim', lead)"
+              >
+                {{ claimingId === lead.id ? '⏳' : '🎯 Xin ngay' }}
+              </button>
             </td>
           </tr>
         </tbody>
@@ -135,6 +145,7 @@ const props = defineProps<{
   page: number;
   limit: number;
   totalPages: number;
+  claimingId?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -142,6 +153,7 @@ const emit = defineEmits<{
   (e: 'update:search', search: string): void;
   (e: 'update:source', source: string): void;
   (e: 'row-click', lead: PooledLead): void;
+  (e: 'claim', lead: PooledLead): void;
 }>();
 
 const searchQuery = ref('');
@@ -491,6 +503,26 @@ function getSourceLabel(source: string): string {
 }
 
 .lpt-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.lpt-claim-btn {
+  padding: 6px 12px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease;
+}
+.lpt-claim-btn:hover:not(:disabled) {
+  background: #2563eb;
+}
+.lpt-claim-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

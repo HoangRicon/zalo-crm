@@ -150,9 +150,19 @@ export async function scoringRoutes(app: FastifyInstance): Promise<void> {
       if (user.role !== 'admin' && user.role !== 'owner') {
         return reply.status(403).send({ error: 'forbidden' });
       }
-      const body = request.body as Record<string, any>;
+const body = request.body as Record<string, any>;
 
-      try {
+        // 2026-07-22 fix-zalo-crm-mvp-gaps#4: validate delta in [-100, 100], enabled boolean
+        if (body.delta !== undefined) {
+          if (typeof body.delta !== 'number' || !Number.isFinite(body.delta) || body.delta < -100 || body.delta > 100) {
+            return reply.status(400).send({ error: 'delta must be a number between -100 and 100' });
+          }
+        }
+        if (body.enabled !== undefined && typeof body.enabled !== 'boolean') {
+          return reply.status(400).send({ error: 'enabled must be boolean' });
+        }
+
+        try {
         const rule = await prisma.scoreSignalRule.findUnique({
           where: { id: request.params.id },
         });

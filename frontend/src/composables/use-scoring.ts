@@ -152,8 +152,9 @@ export function useScoring() {
     return res.data;
   }
 
-  async function updateSignalRule(id: string, body: Partial<SignalRule>): Promise<void> {
-    await api.put(`/scoring/rules/${id}`, body);
+  async function updateSignalRule(id: string, body: Partial<SignalRule>): Promise<SignalRule> {
+    const res = await api.put(`/scoring/rules/${id}`, body);
+    return res.data;
   }
 
   async function getStageTransitions() {

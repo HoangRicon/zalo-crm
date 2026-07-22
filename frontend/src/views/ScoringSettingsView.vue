@@ -111,7 +111,7 @@
         </div>
       </section>
 
-      <!-- Signal rules table (read-only summary, full edit modal in future) -->
+      <!-- Signal rules table (2026-07-22 fix-zalo-crm-mvp-gaps#4: now editable) -->
       <section class="card">
         <h2>📜 Quy tắc chấm điểm ({{ rules.length }})</h2>
         <table class="rules-table">
@@ -123,6 +123,7 @@
               <th>Δ</th>
               <th>Cap/ngày</th>
               <th>Trạng thái</th>
+              <th>Hành động</th>
             </tr>
           </thead>
           <tbody>
@@ -136,14 +137,43 @@
                 <span v-if="r.enabled" class="badge-on">Bật</span>
                 <span v-else class="badge-off">Tắt</span>
               </td>
+              <td>
+                <button class="btn-mini" @click="openRuleDialog(r)">✏️ Sửa</button>
+                <button class="btn-mini" @click="toggleRule(r)" :disabled="togglingId === r.id">
+                  {{ togglingId === r.id ? '⏳' : r.enabled ? '🔇 Tắt' : '🔔 Bật' }}
+                </button>
+              </td>
             </tr>
           </tbody>
         </table>
-        <p class="hint">
-          Sửa từng rule sẽ có ở phiên bản kế tiếp. Hiện tại tune qua API
-          <code>PUT /api/v1/scoring/rules/:id</code>.
-        </p>
       </section>
+    </div>
+
+    <!-- Edit rule dialog -->
+    <div v-if="editingRule" class="modal-overlay" @click.self="editingRule = null">
+      <div class="modal-card">
+        <header class="modal-header">
+          <h3>Sửa quy tắc: <code>{{ editingRule.signalKey }}</code></h3>
+          <button class="modal-close" @click="editingRule = null">✕</button>
+        </header>
+        <div class="modal-body">
+          <div class="weight-row">
+            <label>Δ (delta, −100..100)</label>
+            <input v-model.number="editingRule.delta" type="number" min="-100" max="100" />
+          </div>
+          <div class="weight-row">
+            <label>Bật</label>
+            <input v-model="editingRule.enabled" type="checkbox" />
+          </div>
+          <p class="hint">Chỉ có thể đổi <b>delta</b> và <b>enabled</b>. Đổi signalKey/conditions qua DB (out-of-scope đợt này).</p>
+        </div>
+        <footer class="modal-footer">
+          <button class="btn-secondary" @click="editingRule = null">Huỷ</button>
+          <button class="btn-primary" @click="saveRule" :disabled="savingRule || editingRule.delta < -100 || editingRule.delta > 100">
+            {{ savingRule ? '⏳ Đang lưu…' : '💾 Lưu' }}
+          </button>
+        </footer>
+      </div>
     </div>
 
     <div v-if="toast" class="toast" :class="toast.type">{{ toast.message }}</div>
@@ -295,6 +325,49 @@ async function scanStuck() {
     showToast('error', 'Scan thất bại');
   } finally {
     scanning.value = false;
+  }
+}
+
+// 2026-07-22 fix-zalo-crm-mvp-gaps#4: edit + toggle signal rules
+const editingRule = ref<SignalRule | null>(null);
+const savingRule = ref(false);
+const togglingId = ref<string | null>(null);
+
+function openRuleDialog(r: SignalRule) {
+  // Shallow clone so cancel doesn't mutate row
+  editingRule.value = { ...r };
+}
+
+async function saveRule() {
+  if (!editingRule.value || savingRule.value) return;
+  savingRule.value = true;
+  try {
+    const updated = await scoring.updateSignalRule(editingRule.value.id, {
+      delta: editingRule.value.delta,
+      enabled: editingRule.value.enabled,
+    });
+    const idx = rules.value.findIndex((r) => r.id === updated.id);
+    if (idx >= 0) rules.value[idx] = updated;
+    showToast('success', 'Đã lưu quy tắc');
+    editingRule.value = null;
+  } catch (err: any) {
+    showToast('error', err?.response?.data?.error || 'Lưu quy tắc thất bại');
+  } finally {
+    savingRule.value = false;
+  }
+}
+
+async function toggleRule(r: SignalRule) {
+  if (togglingId.value) return;
+  togglingId.value = r.id;
+  try {
+    const updated = await scoring.updateSignalRule(r.id, { enabled: !r.enabled });
+    const idx = rules.value.findIndex((x) => x.id === updated.id);
+    if (idx >= 0) rules.value[idx] = updated;
+  } catch (err: any) {
+    showToast('error', err?.response?.data?.error || 'Toggled thất bại');
+  } finally {
+    togglingId.value = null;
   }
 }
 
@@ -495,4 +568,54 @@ onMounted(load);
 }
 .toast.success { background: #10B981; }
 .toast.error { background: #EF4444; }
+
+.btn-mini {
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  margin-right: 4px;
+  cursor: pointer;
+}
+.btn-mini:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9998;
+}
+.modal-card {
+  background: #fff;
+  border-radius: 12px;
+  width: 480px;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid #F3F4F6;
+}
+.modal-header h3 { margin: 0; font-size: 15px; }
+.modal-close { background: none; border: none; font-size: 18px; cursor: pointer; color: #6B7280; }
+.modal-body { padding: 18px; }
+.modal-body .weight-row {
+  grid-template-columns: 200px 100px auto;
+}
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid #F3F4F6;
+}
 </style>

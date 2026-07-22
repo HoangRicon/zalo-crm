@@ -129,6 +129,8 @@ const routes: RouteRecordRaw[] = [
       // 🏢 Org
       { path: 'org/profile', name: 'Settings.OrgProfile', component: () => import('@/components/settings/OrgSettings.vue'), meta: { resource: 'settings' } },
       { path: 'org/system-notifications', name: 'Settings.SystemNotifications', component: () => import('@/views/settings/SystemNotificationsPage.vue'), meta: { resource: 'settings' } },
+      // 2026-07-22 fix-zalo-crm-mvp-gaps#5: short URL for sender config (easy to find)
+      { path: 'org/system-sender',     name: 'Settings.SystemSender',      component: () => import('@/views/settings/SystemSenderPage.vue'),      meta: { resource: 'settings' } },
       { path: 'org/billing', name: 'Settings.Billing',   component: () => import('@/views/settings/SettingsComingSoon.vue'), props: { feature: 'billing' }, meta: { resource: 'settings' } },
       { path: 'org/audit',   name: 'Settings.Audit',     component: () => import('@/views/settings/AuditLogView.vue'), meta: { resource: 'audit_log' } },
 

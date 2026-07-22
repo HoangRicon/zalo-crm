@@ -75,6 +75,8 @@
             <v-list-item v-if="authStore.canAccess('zalo_account')" to="/settings/channels/zalo" title="Tài khoản Zalo" prepend-icon="mdi-cellphone-link" />
             <v-list-item v-if="authStore.canAccess('settings')" to="/settings/crm/tags-v2" title="Nhãn KH" prepend-icon="mdi-tag-multiple-outline" />
             <v-list-item v-if="authStore.canAccess('settings')" to="/settings/org/system-notifications" title="Thông báo hệ thống" prepend-icon="mdi-bell-cog-outline" />
+            <!-- 2026-07-22 fix-zalo-crm-mvp-gaps#5: shortcut riêng cho config nick gửi (dễ tìm) -->
+            <v-list-item v-if="authStore.canAccess('settings')" to="/settings/org/system-sender" title="Nick gửi thông báo" prepend-icon="mdi-send-check-outline" />
             <!-- Open-core: extension top-nav shortcuts (empty in Community edition). -->
             <template v-for="sc in eeTopNavShortcuts" :key="sc.to">
               <v-list-item v-if="authStore.canAccess(sc.resource)" :to="sc.to" :title="sc.title" :prepend-icon="sc.icon" />

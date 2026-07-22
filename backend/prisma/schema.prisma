@@ -4489,6 +4489,9 @@ model AutomationExecutionLog {
   status      String    @default("running")
   sent        Int       @default(0)
   failed      Int       @default(0)
+  // 2026-07-22 fix-zalo-crm-mvp-gaps#6: error message + per-recipient breakdown
+  error       String?
+  details     Json?
   startedAt   DateTime  @default(now()) @map("started_at")
   completedAt DateTime? @map("completed_at")
 

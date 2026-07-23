@@ -18,6 +18,9 @@
       @clear-account-filter="onFilterAccount(null)"
     />
 
+    <!-- draggable: sidebar ↔ conv list -->
+    <div class="smax-divider" @mousedown="startDrag($event, 'sidebar')"></div>
+
     <!-- COL 2: conversation list — FilterBar render INSIDE via named slot
          giữa CRM tag bar và conv list (đúng order user yêu cầu) -->
     <div class="smax-conv-col">
@@ -86,6 +89,9 @@
       </ConversationList>
     </div>
 
+    <!-- draggable: conv list ↔ message thread -->
+    <div class="smax-divider" @mousedown="startDrag($event, 'conv')"></div>
+
     <!-- COL 3: message thread -->
     <MessageThread
       :conversation="selectedConv"
@@ -119,6 +125,9 @@
       @switch-conversation="onSwitchToNickConv"
       @profile-synced="patchContactProfile"
     />
+
+    <!-- draggable: message thread ↔ contact panel -->
+    <div v-if="showContactPanel && selectedConv?.contact" class="smax-divider" @mousedown="startDrag($event, 'thread')"></div>
 
     <!-- Folder management modal (overlay) -->
     <FolderManagePopup
@@ -188,7 +197,7 @@ const route = useRoute();
 const router = useRouter();
 
 // ── Draggable panel dividers ──────────────────────────────────────────────────
-type DragTarget = 'conv' | 'thread';
+type DragTarget = 'sidebar' | 'conv' | 'thread';
 const dragState = ref<{ target: DragTarget; startX: number } | null>(null);
 const chatGridEl = ref<HTMLElement | null>(null);
 
@@ -205,23 +214,31 @@ function onMouseMove(e: MouseEvent) {
   const dx = e.clientX - startX;
   if (Math.abs(dx) < 3) return;
 
+  const sidebar = chatGridEl.value.querySelector('.filter-sidebar') as HTMLElement | null;
   const convCol = chatGridEl.value.querySelector('.smax-conv-col') as HTMLElement | null;
   const msgCol = chatGridEl.value.querySelector('.smax-msg-col') as HTMLElement | null;
   const infoCol = chatGridEl.value.querySelector('.smax-info-col') as HTMLElement | null;
-  if (!convCol || !msgCol) return;
+  if (!sidebar || !convCol || !msgCol) return;
 
   const MIN_PX = 200;
-  const CONV_SEL = target === 'conv';
+  const MAX_PX = 500;
 
-  if (CONV_SEL) {
-    // Dragging conv↔msg divider: conv rộng thêm ← kéo phải, msg hẹp lại
+  if (target === 'sidebar') {
+    // Dragging sidebar↔conv divider: sidebar rộng ← kéo phải
+    const curSidebar = parseInt(getComputedStyle(sidebar).flexBasis) || 220;
+    const newSidebar = Math.min(MAX_PX, Math.max(MIN_PX, curSidebar + dx));
+    sidebar.style.flexBasis = newSidebar + 'px';
     const curConv = parseInt(getComputedStyle(convCol).flexBasis) || 290;
-    const newConv = Math.max(MIN_PX, curConv + dx);
+    convCol.style.flexBasis = Math.max(MIN_PX, curConv - dx) + 'px';
+  } else if (target === 'conv') {
+    // Dragging conv↔msg divider: conv rộng ← kéo phải
+    const curConv = parseInt(getComputedStyle(convCol).flexBasis) || 290;
+    const newConv = Math.min(MAX_PX, Math.max(MIN_PX, curConv + dx));
     convCol.style.flexBasis = newConv + 'px';
     const curMsg = parseInt(getComputedStyle(msgCol).flexBasis) || 380;
     msgCol.style.flexBasis = Math.max(MIN_PX, curMsg - dx) + 'px';
   } else {
-    // Dragging msg↔info divider: msg rộng thêm ← kéo phải, info hẹp lại
+    // Dragging msg↔info divider: msg rộng ← kéo phải
     const curMsg = parseInt(getComputedStyle(msgCol).flexBasis) || 380;
     msgCol.style.flexBasis = Math.max(MIN_PX, curMsg + dx) + 'px';
     if (infoCol) {
@@ -845,25 +862,10 @@ watch(searchQuery, () => {
 
 <style>
 .smax-chat-grid {
-  display: grid;
-  grid-template-columns: 290px 380px 1fr 350px;
-  height: calc(100vh - var(--smax-topnav-h, 52px));
-  overflow: hidden;
-  background: var(--smax-grey-100);
-}
-.smax-conv-col,
-.smax-msg-col,
-.smax-info-col {
-  min-width: 0; min-height: 0;
-  height: 100%;
-  overflow: hidden;
-}
-</style>
-.smax-chat-grid {
   display: flex;
   flex-direction: row;
   overflow: hidden;
-  height: calc(100vh - var(--smax-topnav-h, 52px));
+  height: calc(100vh - var(--smax-topnav-h, 48px));
   background: var(--smax-grey-100);
   align-items: stretch;
 }
@@ -889,6 +891,11 @@ watch(searchQuery, () => {
 .smax-chat-grid:not(:has(.smax-info-col)) .smax-conv-col { flex-basis: 290px; }
 .smax-chat-grid:not(:has(.smax-info-col)) .smax-msg-col { flex: 1; }
 
+/* Sidebar divider (between filter-sidebar and conv list) */
+.smax-chat-grid > :nth-child(2).smax-divider {
+  display: block;
+}
+
 /* Draggable dividers */
 .smax-divider {
   width: 5px;
@@ -898,9 +905,9 @@ watch(searchQuery, () => {
   border-radius: 3px;
   align-self: stretch;
   transition: background 0.15s;
-  margin: 0 0;
 }
 .smax-divider:hover { background: rgba(var(--v-theme-primary), 0.45); }
+.smax-divider:active { background: rgba(var(--v-theme-primary), 0.7); }
 
 /* Responsive breakpoints */
 @media (max-width: 1700px) {
@@ -1025,3 +1032,4 @@ watch(searchQuery, () => {
 }
 
 /* ── Draggable panel dividers (handled by flex layout above) ── */
+</style>

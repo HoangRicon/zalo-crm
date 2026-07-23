@@ -55,6 +55,10 @@ async function load() {
   loading.value = true;
   try {
     sequences.value = await sequencesApi.list();
+  } catch (err: any) {
+    console.error('[SequencesTab] load failed', err);
+    sequences.value = [];
+    alert(`Lỗi tải danh sách: ${err?.response?.data?.error ?? err.message}`);
   } finally {
     loading.value = false;
   }
@@ -73,7 +77,7 @@ async function toggle(s: Sequence) {
     }
     await load();
   } catch (e: any) {
-    alert('Lỗi cập nhật');
+    alert(`Lỗi cập nhật: ${e?.response?.data?.error ?? e.message}`);
   }
 }
 

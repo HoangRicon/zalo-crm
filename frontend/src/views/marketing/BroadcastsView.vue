@@ -40,15 +40,16 @@
       </div>
 
       <div v-if="loading" class="bc-empty">Đang tải…</div>
-      <div v-else-if="filteredJobs.length === 0" class="bc-empty">
-        <v-icon size="40">mdi-bullhorn-outline</v-icon>
-        <p v-if="jobs.length === 0">
-          Chưa có broadcast nào. Bấm <b>Tạo broadcast</b> để bắt đầu.
-        </p>
-        <p v-else>Không có broadcast nào ở trạng thái <b>{{ statusFilterLabel }}</b>.</p>
-      </div>
+      <template v-else>
+        <div v-if="filteredJobs.length === 0" class="bc-empty">
+          <v-icon size="40">mdi-bullhorn-outline</v-icon>
+          <p v-if="jobs.length === 0">
+            Chưa có broadcast nào. Bấm <b>Tạo broadcast</b> để bắt đầu.
+          </p>
+          <p v-else>Không có broadcast nào ở trạng thái <b>{{ statusFilterLabel }}</b>.</p>
+        </div>
 
-      <div v-for="job in filteredJobs" :key="job.id" class="bc-card" :class="'st-' + job.status">
+        <div v-for="job in filteredJobs" :key="job.id" class="bc-card" :class="'st-' + job.status">
         <div class="bc-card-main">
           <div class="bc-card-head">
             <span class="bc-name">{{ job.name }}</span>
@@ -94,6 +95,7 @@
           </button>
         </div>
       </div>
+      </template>
     </div>
 
     <!-- ============ Modal tạo broadcast ============ -->
@@ -452,7 +454,11 @@ function selectMedia(m: MediaAssetItem): void {
 async function load(): Promise<void> {
   try {
     const res = await api.get('/broadcast-jobs');
-    jobs.value = res.data.jobs;
+    jobs.value = res.data.jobs ?? [];
+  } catch (err: any) {
+    console.error('[broadcasts] load failed', err);
+    toast(`Lỗi tải danh sách: ${err?.response?.data?.error ?? err.message}`, 'error');
+    jobs.value = [];
   } finally {
     loading.value = false;
   }

@@ -47,6 +47,7 @@ export interface CreateTemplateData {
   tagIds?: string[];
   folderId?: string | null;
   visibility?: 'public' | 'private';
+  imageBase64?: string;
 }
 
 export interface UpdateTemplateData {
@@ -58,6 +59,7 @@ export interface UpdateTemplateData {
   tagIds?: string[];
   folderId?: string | null;
   visibility?: 'public' | 'private';
+  imageBase64?: string | null;
 }
 
 export interface CreateFolderData {

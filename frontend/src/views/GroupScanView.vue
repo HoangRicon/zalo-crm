@@ -267,22 +267,23 @@
           </v-btn-toggle>
         </div>
 
+        <!-- alerts sit outside scroll area -->
         <v-alert type="info" variant="tonal" density="compact" class="ma-4 mb-0" icon="mdi-information">
           <b>Mẹo an toàn:</b> Người lạ chưa kết bạn — nhắn hàng loạt dễ bị khóa nick.
           Chiến dịch nên lọc <b>"Là bạn"</b> hoặc bật bước kết bạn trước.
         </v-alert>
 
-        <v-data-table
-          :headers="memberHeaders"
-          :items="filteredMembers"
-          :loading="scanMembersLoading"
-          :search="memberSearch"
-          item-value="id"
-          density="comfortable"
-          fixed-header
-          height="calc(100vh - 320px)"
-          class="mt-2"
-        >
+        <!-- scrollable table: wrap in overflow div so table scrolls internally -->
+        <div class="gs-roster-table-wrap">
+          <v-data-table
+            :headers="memberHeaders"
+            :items="filteredMembers"
+            :loading="scanMembersLoading"
+            :search="memberSearch"
+            item-value="id"
+            density="comfortable"
+            class="gs-members-table"
+          >
           <template #item.member="{ item }">
             <div class="d-flex align-center gap-3 py-1">
               <v-avatar :image="item.avatarUrl || undefined" :color="avatarColor(item.id)" size="36">
@@ -529,6 +530,17 @@ onBeforeUnmount(stopPolling);
 .sticky-bar {
   position: sticky;
   bottom: 0;
+  background: rgb(var(--v-theme-surface));
+  z-index: 1;
+}
+.gs-roster-table-wrap {
+  overflow-y: auto;
+  max-height: calc(100vh - 360px);
+  min-height: 200px;
+}
+.gs-members-table :deep(thead th) {
+  position: sticky;
+  top: 0;
   background: rgb(var(--v-theme-surface));
   z-index: 1;
 }

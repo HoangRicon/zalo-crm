@@ -138,4 +138,82 @@ export async function triggerRoutes(app: FastifyInstance): Promise<void> {
     await prisma.automationTrigger.delete({ where: { id: existing.id } });
     return { ok: true };
   });
+
+  // ── Care Sessions: manual listen (follow/unfollow) ─────────────────────────
+
+  // POST /api/v1/care-sessions/listen — start manual follow session for contact×nick
+  app.post('/api/v1/care-sessions/listen', async (request, reply) => {
+    const user = request.user!;
+    const { contactId, nickId } = request.body as { contactId?: string; nickId?: string };
+    if (!contactId) return reply.status(400).send({ error: 'contactId required' });
+    if (!nickId) return reply.status(400).send({ error: 'nickId required' });
+
+    // Upsert: find existing active manual session first
+    const existing = await prisma.careSession.findFirst({
+      where: {
+        orgId: user.orgId,
+        contactId,
+        nickId,
+        ownerUserId: user.id,
+        state: 'active',
+      },
+      select: { id: true },
+    });
+    if (existing) return { sessionId: existing.id, alreadyListening: true };
+
+    const session = await prisma.careSession.create({
+      data: {
+        id: `cs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        orgId: user.orgId,
+        contactId,
+        nickId,
+        ownerUserId: user.id,
+        enrolledByUserId: user.id,
+        sourceType: 'manual',
+        // manual listen sessions have 7-day interest window by default
+        interestWindowUntil: new Date(Date.now() + 7 * 24 * 3600 * 1000),
+        state: 'active',
+      },
+      select: { id: true },
+    });
+    return { sessionId: session.id, alreadyListening: false };
+  });
+
+  // DELETE /api/v1/care-sessions/listen — stop manual follow session
+  app.delete('/api/v1/care-sessions/listen', async (request, reply) => {
+    const user = request.user!;
+    const { contactId, nickId } = (request.body || {}) as { contactId?: string; nickId?: string };
+    if (!contactId) return reply.status(400).send({ error: 'contactId required' });
+    if (!nickId) return reply.status(400).send({ error: 'nickId required' });
+
+    const result = await prisma.careSession.updateMany({
+      where: {
+        orgId: user.orgId,
+        contactId,
+        nickId,
+        ownerUserId: user.id,
+        state: 'active',
+      },
+      data: { state: 'closed' },
+    });
+    return { ok: true, closed: result.count };
+  });
+
+  // GET /api/v1/care-sessions/listening-pairs — for bell icon in ConversationList
+  app.get('/api/v1/care-sessions/listening-pairs', async (request, reply) => {
+    const user = request.user!;
+    const sessions = await prisma.careSession.findMany({
+      where: {
+        orgId: user.orgId,
+        state: 'active',
+      },
+      select: { contactId: true, nickId: true, externalThreadId: true },
+    });
+    const pairs = sessions.map((s) => ({
+      contactId: s.contactId,
+      nickId: s.nickId,
+      externalThreadId: s.externalThreadId,
+    }));
+    return { pairs };
+  });
 }

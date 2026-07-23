@@ -54,4 +54,7 @@ export const sequencesApi = {
     const r = await api.get(`/sequences/${id}/history`);
     return r.data;
   },
+  async enroll(sequenceId: string, contactId: string, oaAccountId: string) {
+    await api.post(`/sequences/${sequenceId}/enroll`, { contactId, oaAccountId });
+  },
 };

@@ -171,6 +171,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { api } from '@/api/index';
+import { sequencesApi } from '@/api/sequences';
 import SequencePreviewDialog from './SequencePreviewDialog.vue';
 
 // ── Props ──
@@ -269,18 +270,9 @@ const canSubmit = computed(
 async function fetchSequences(): Promise<void> {
   loadingSequences.value = true;
   try {
-    const res = await api.get<{
-      sequences: Array<{
-        id: string;
-        name: string;
-        description?: string | null;
-        steps: any[];
-        runtimeRules?: any;
-        enabled: boolean;
-      }>;
-    }>('/automation/sequences?enabled=true');
-
-    sequences.value = (res.data.sequences ?? [])
+    // /api/v1/sequences returns array directly (not wrapped in {sequences:[]})
+    const seqs = await sequencesApi.list();
+    sequences.value = seqs
       .filter((s) => s.enabled)
       .map((s) => {
         const steps = Array.isArray(s.steps) ? s.steps : [];
@@ -289,8 +281,8 @@ async function fetchSequences(): Promise<void> {
           name: s.name,
           description: s.description,
           stepCount: steps.length,
-          estLabel: estLabelOf(steps, s.runtimeRules),
-          rulesLabel: rulesLabelOf(s.runtimeRules),
+          estLabel: estLabelOf(steps, {}),
+          rulesLabel: rulesLabelOf({}),
         };
       });
 
@@ -314,11 +306,7 @@ async function onSubmit(): Promise<void> {
   error.value = null;
 
   try {
-    await api.post(`/chat/contacts/${props.contactId}/manual-enroll`, {
-      sequenceId: selectedSequenceId.value,
-      nickId: props.nickId,
-      reason: reason.value.trim(),
-    });
+    await sequencesApi.enroll(selectedSequenceId.value!, props.contactId, props.nickId!);
 
     const seq = sequences.value.find((s) => s.id === selectedSequenceId.value);
     emit('enrolled', {

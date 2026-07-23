@@ -491,7 +491,7 @@
     </div>
 
     <!-- ════════ TAB AI (Trợ lý chat) ════════ -->
-    <div v-if="mainTab === 'ai'" class="main-tab-body" style="align-items: stretch;">
+    <div v-if="mainTab === 'ai'" class="main-tab-body ai-tab-body">
       <div class="ai-tab-header">
         <div class="ai-tab-title">✨ Trợ lý AI</div>
         <div class="ai-tab-sub">Hỏi đáp về sản phẩm, gợi ý chăm sóc KH</div>
@@ -2330,8 +2330,14 @@ async function onRegenerateHandoff() {
 .mtp-link:hover { background: #0050cc; }
 
 /* ── AI Tab (2026-07-23) ──────────────────────────────────────── */
-.ai-tab-header { padding: 16px 16px 8px; }
-.ai-tab-title { font-size: 16px; font-weight: 700; color: var(--smax-primary, #0e445a); }
+.ai-tab-body {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 12px 0;
+  overflow-y: auto;
+}
+.ai-tab-header { padding: 0 16px 10px; }
+.ai-tab-title { font-size: 15px; font-weight: 700; color: var(--smax-primary, #0e445a); }
 .ai-tab-sub { font-size: 12px; color: var(--smax-grey-600); margin-top: 2px; }
 
 .ai-quick-actions {

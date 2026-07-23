@@ -86,8 +86,12 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { sequencesApi, type Sequence, type SequenceStep } from '@/api/sequences';
+import { useToast } from '@/composables/use-toast';
+import { useConfirm } from '@/composables/use-confirm';
 
 const router = useRouter();
+const toast = useToast();
+const confirm = useConfirm();
 const sequences = ref<Sequence[]>([]);
 const current = ref<Sequence | null>(null);
 const loading = ref(true);
@@ -170,7 +174,7 @@ function moveStep(uid: string, direction: -1 | 1) {
 
 async function save() {
   if (!form.value.name?.trim()) {
-    alert('Tên sequence là bắt buộc');
+    toast.error('Tên sequence là bắt buộc');
     return;
   }
   saving.value = true;
@@ -189,7 +193,7 @@ async function save() {
     }
     await load();
   } catch (e: any) {
-    alert(e?.response?.data?.error || 'Lỗi lưu');
+    toast.error(e?.response?.data?.error || 'Lỗi lưu');
   } finally {
     saving.value = false;
   }
@@ -205,19 +209,19 @@ async function toggle() {
     }
     await load();
   } catch (e: any) {
-    alert('Lỗi cập nhật');
+    toast.error('Lỗi cập nhật');
   }
 }
 
 async function del() {
   if (!form.value.id) return;
-  if (!confirm(`Xóa sequence "${form.value.name}"?`)) return;
+  if (!(await confirm({ title: `Xóa sequence "${form.value.name}"?`, tone: 'danger', confirmText: 'Xóa', cancelText: 'Hủy' }))) return;
   try {
     await sequencesApi.delete(form.value.id);
     newSequence();
     await load();
   } catch (e: any) {
-    alert('Lỗi xóa');
+    toast.error('Lỗi xóa');
   }
 }
 

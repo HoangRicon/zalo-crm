@@ -323,11 +323,13 @@ import {
 } from '@/stores/rbac';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/api/index';
+import { useToast } from '@/composables/use-toast';
 import UserEditPanel from '@/components/rbac/UserEditPanel.vue';
 import CreateUserWithZaloModal from '@/components/users/CreateUserWithZaloModal.vue';
 
 const store = useRbacStore();
 const authStore = useAuthStore();
+const toast = useToast();
 
 const searchQ = ref('');
 // UI refactor 2026-05-27 — toggle hiện/ẩn cột email. Persist localStorage để admin
@@ -400,9 +402,9 @@ async function applyBulk() {
     const { data } = await api.post('/users/bulk-assign', payload);
     await store.loadUsers();
     clearSelection();
-    alert(`Đã gán cho ${data.affected} nhân viên.`);
+    toast.success(`Đã gán cho ${data.affected} nhân viên.`);
   } catch (e: any) {
-    alert(e?.response?.data?.error || e?.response?.data?.message || 'Lỗi thao tác hàng loạt');
+    toast.error(e?.response?.data?.error || e?.response?.data?.message || 'Lỗi thao tác hàng loạt');
   } finally {
     bulkBusy.value = false;
   }

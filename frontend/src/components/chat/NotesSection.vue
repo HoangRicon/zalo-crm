@@ -127,6 +127,7 @@ import { ref, computed, watch, nextTick } from 'vue';
 import { useNotes } from '@/composables/use-notes';
 import { useAuthStore } from '@/stores/auth';
 import { useToast } from '@/composables/use-toast';
+import { useConfirm } from '@/composables/use-confirm';
 import NoteRow from './NoteRow.vue';
 import AppointmentEditor from '@/components/appointments/AppointmentEditor.vue';
 import type { AiPrefill } from '@/composables/appointment-helpers';
@@ -138,6 +139,7 @@ const props = defineProps<{
 
 const auth = useAuthStore();
 const toast = useToast();
+const confirm = useConfirm();
 const currentUserId = computed(() => auth.user?.id || '');
 
 const { notes, loading, saving, rootCount, fetch, create, update, remove, toggleReaction, aiParse, linkAppointment } =
@@ -267,7 +269,7 @@ async function onEdit(noteId: string, newBody: string) {
 }
 
 async function onDelete(noteId: string) {
-  if (!confirm('Xoá ghi chú này?')) return;
+  if (!(await confirm({ title: 'Xoá ghi chú này?', tone: 'danger', confirmText: 'Xoá', cancelText: 'Huỷ' }))) return;
   const ok = await remove(noteId);
   if (ok) toast.success('Đã xoá');
 }

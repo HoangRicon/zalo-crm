@@ -152,6 +152,9 @@
 import { ref, computed, watch } from 'vue';
 import { useRbacStore, type PermissionGroupNode, type RbacUser } from '@/stores/rbac';
 import { api } from '@/api/index';
+import { useConfirm } from '@/composables/use-confirm';
+
+const confirm = useConfirm();
 
 const props = defineProps<{
   open: boolean;
@@ -296,7 +299,7 @@ async function unassignUser(userId: string) {
 
 async function confirmArchive() {
   if (!props.node) return;
-  if (!confirm(`Xóa nhóm quyền "${props.node.name}"?`)) return;
+  if (!(await confirm({ title: `Xóa nhóm quyền "${props.node.name}"?`, tone: 'danger', confirmText: 'Xóa', cancelText: 'Hủy' }))) return;
   busy.value = true;
   try {
     await api.delete(`/permission-groups/${props.node.id}`);

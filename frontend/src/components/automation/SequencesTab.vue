@@ -46,8 +46,12 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { sequencesApi, type Sequence } from '@/api/sequences';
+import { useToast } from '@/composables/use-toast';
+import { useConfirm } from '@/composables/use-confirm';
 
 const router = useRouter();
+const toast = useToast();
+const confirm = useConfirm();
 const sequences = ref<Sequence[]>([]);
 const loading = ref(true);
 
@@ -58,7 +62,7 @@ async function load() {
   } catch (err: any) {
     console.error('[SequencesTab] load failed', err);
     sequences.value = [];
-    alert(`Lỗi tải danh sách: ${err?.response?.data?.error ?? err.message}`);
+    toast.error(`Lỗi tải danh sách: ${err?.response?.data?.error ?? err.message}`);
   } finally {
     loading.value = false;
   }
@@ -77,17 +81,17 @@ async function toggle(s: Sequence) {
     }
     await load();
   } catch (e: any) {
-    alert(`Lỗi cập nhật: ${e?.response?.data?.error ?? e.message}`);
+    toast.error(`Lỗi cập nhật: ${e?.response?.data?.error ?? e.message}`);
   }
 }
 
 async function del(s: Sequence) {
-  if (!confirm(`Xóa sequence "${s.name}"?`)) return;
+  if (!(await confirm({ title: `Xóa sequence "${s.name}"?`, tone: 'danger', confirmText: 'Xóa', cancelText: 'Hủy' }))) return;
   try {
     await sequencesApi.delete(s.id);
     await load();
   } catch (e: any) {
-    alert('Lỗi xóa');
+    toast.error('Lỗi xóa');
   }
 }
 

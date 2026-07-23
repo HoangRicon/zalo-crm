@@ -18,7 +18,7 @@
 <template>
   <Teleport to="body">
     <div v-if="open" class="cam-overlay" @click.self="onCancel">
-      <div class="cam-modal" role="dialog" aria-modal="true">
+      <div class="cam-modal" role="dialog" aria-modal="true" tabindex="-1" @keydown.esc="onCancel">
         <!-- Head -->
         <div class="cam-head">
           <span class="cam-ic" :class="tone">

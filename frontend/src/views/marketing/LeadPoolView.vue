@@ -251,6 +251,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
 import LeadPoolTable from '@/components/lead-pool/LeadPoolTable.vue';
+import { useConfirm } from '@/composables/use-confirm';
 import {
   getLeadPoolStats,
   getPooledLeads,
@@ -266,6 +267,7 @@ const TABS = [
 ];
 
 const activeTab = ref('pool');
+const confirm = useConfirm();
 const stats = ref({ leadsInPool: 0, assignedToday: 0, pendingRequests: 0, upcomingAutoReturns: 0 });
 
 // Pool leads state
@@ -436,7 +438,7 @@ const claimingId = ref<string | null>(null);
 const claimError = ref('');
 
 async function onClaimLead(lead: PooledLead) {
-  if (!confirm(`Xin lead "${lead.fullName || lead.phone}" vào danh sách của anh/chị?`)) return;
+  if (!(await confirm({ title: `Xin lead "${lead.fullName || lead.phone}" vào danh sách của anh/chị?`, confirmText: 'Xin lead', cancelText: 'Hủy' }))) return;
   claimingId.value = lead.id;
   claimError.value = '';
   try {

@@ -2,8 +2,14 @@
 <!-- Copyright (C) 2026 Nguyễn Tiến Lộc -->
 <template>
   <v-bottom-navigation grow :model-value="activeTab" @update:model-value="navigate" style="position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; padding-bottom: env(safe-area-inset-bottom);">
-    <v-btn v-for="tab in tabs" :key="tab.path" :value="tab.path">
-      <v-icon>{{ tab.icon }}</v-icon>
+    <v-btn
+      v-for="tab in tabs"
+      :key="tab.path"
+      :value="tab.path"
+      :aria-label="tab.title"
+      :aria-current="activeTab === tab.path ? 'page' : undefined"
+    >
+      <v-icon aria-hidden="true">{{ tab.icon }}</v-icon>
       <span class="text-caption">{{ tab.title }}</span>
     </v-btn>
   </v-bottom-navigation>

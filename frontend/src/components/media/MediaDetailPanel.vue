@@ -131,6 +131,9 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import { updateMedia, archiveMedia, watermarkMedia, removeWatermark, toggleFavorite, listMediaTags, type MediaAssetItem, type MediaFolder } from '@/api/media';
 import { useToast } from '@/composables/use-toast';
+import { useConfirm } from '@/composables/use-confirm';
+
+const confirm = useConfirm();
 import MediaSendPicker from '@/components/media/MediaSendPicker.vue';
 import ConfirmShareDialog from '@/components/media/ConfirmShareDialog.vue';
 import { Image as ImageIcon, FileText as FileIcon, Video as VideoIcon, Smartphone as NickIcon, Upload as UploadIcon, Send as SendIcon, Star as StarIcon, Trash2 as Trash2Icon } from 'lucide-vue-next';
@@ -320,7 +323,13 @@ function onInserted() {
 }
 
 async function doArchive() {
-  if (!window.confirm(`Xóa "${props.asset.name}" khỏi kho? (Lịch sử chat đã gửi không bị ảnh hưởng)`)) return;
+  if (!(await confirm({
+    title: `Xóa "${props.asset.name}" khỏi kho?`,
+    description: 'Lịch sử chat đã gửi không bị ảnh hưởng.',
+    tone: 'warning',
+    confirmText: 'Xóa',
+    cancelText: 'Hủy',
+  }))) return;
   try {
     await archiveMedia(props.asset.id);
     emit('archived', props.asset.id);

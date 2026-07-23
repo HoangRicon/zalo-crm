@@ -491,11 +491,12 @@ html, body {
   .topnav-search { max-width: 160px; }
 }
 @media (max-width: 1100px) {
-  /* FIX 2026-07-24: thu nhỏ còn icon thay vì ẩn hoàn toàn → vẫn search được. */
+  /* FIX 2026-07-24: thu nhỏ còn icon thay vì ẩn hoàn toàn → vẫn search được.
+     Dùng ::v-deep thay vì :deep vì lightningcss không nhận :deep. */
   .topnav-search { max-width: 40px; }
-  .topnav-search :deep(.v-field__input),
-  .topnav-search :deep(.v-field__outline) { display: none; }
-  .topnav-search :deep(.v-field__field) { padding: 0; }
+  .topnav-search ::v-deep(.v-field__input),
+  .topnav-search ::v-deep(.v-field__outline) { display: none; }
+  .topnav-search ::v-deep(.v-field__field) { padding: 0; }
 }
 .topnav-search :deep(.v-field) {
   background: rgba(255, 255, 255, 0.08) !important;

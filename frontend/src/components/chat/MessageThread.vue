@@ -1032,6 +1032,7 @@ const _authStore = useAuthStore();
 const currentUserId = computed<string | null>(() => _authStore.user?.id ?? null);
 import FriendInviteDialog from '@/components/chat/FriendInviteDialog.vue';
 import { useToast } from '@/composables/use-toast';
+import { useConfirm } from '@/composables/use-confirm';
 import { useZaloPresence } from '@/composables/use-zalo-presence';
 import { useZaloFriendStatus } from '@/composables/use-zalo-friend-status';
 import { useFriendSocket } from '@/composables/use-friend-socket';
@@ -1085,6 +1086,7 @@ const emit = defineEmits<{
 }>();
 
 const toast = useToast();
+const confirm = useConfirm();
 const inputText = ref('');
 const messagesContainer = ref<HTMLElement | null>(null);
 const previewImageUrl = ref('');
@@ -2172,7 +2174,7 @@ async function onRemoveFriend() {
     toast.error('Thiếu thông tin nick hoặc KH');
     return;
   }
-  if (!confirm('Huỷ kết bạn với KH này? Sau đó muốn nhắn lại sẽ phải gửi lời mời kết bạn lại.')) return;
+  if (!(await confirm({ title: 'Huỷ kết bạn với KH này?', description: 'Sau đó muốn nhắn lại sẽ phải gửi lời mời kết bạn lại.', tone: 'warning', confirmText: 'Huỷ kết bạn', cancelText: 'Hủy' }))) return;
   actionLoading.value = true;
   try {
     await api.delete(`/zalo-accounts/${accountId}/friends/${uid}`);

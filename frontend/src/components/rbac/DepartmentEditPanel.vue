@@ -141,6 +141,9 @@
 import { ref, computed, watch } from 'vue';
 import { useRbacStore, type DepartmentNode, type RbacUser } from '@/stores/rbac';
 import { api } from '@/api/index';
+import { useConfirm } from '@/composables/use-confirm';
+
+const confirm = useConfirm();
 
 const props = defineProps<{
   open: boolean;
@@ -270,7 +273,7 @@ async function addMember() {
 
 async function removeMember(userId: string) {
   if (!props.node) return;
-  if (!confirm('Xóa nhân viên này khỏi phòng ban?')) return;
+  if (!(await confirm({ title: 'Xóa nhân viên này khỏi phòng ban?', tone: 'warning', confirmText: 'Xóa', cancelText: 'Hủy' }))) return;
   busy.value = true;
   try {
     await api.delete(`/departments/${props.node.id}/members/${userId}`);
@@ -285,7 +288,13 @@ async function removeMember(userId: string) {
 
 async function confirmArchive() {
   if (!props.node) return;
-  if (!confirm(`Xóa phòng "${props.node.name}"? Phải rỗng (không còn nhân viên + không còn phòng con).`)) return;
+  if (!(await confirm({
+    title: `Xóa phòng "${props.node.name}"?`,
+    description: 'Phải rỗng (không còn nhân viên + không còn phòng con).',
+    tone: 'danger',
+    confirmText: 'Xóa',
+    cancelText: 'Hủy',
+  }))) return;
   busy.value = true;
   try {
     await store.archiveDepartment(props.node.id);

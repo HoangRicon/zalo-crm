@@ -39,6 +39,9 @@
 import { ref, onMounted } from 'vue';
 import { useTheme } from 'vuetify';
 import { useAuthStore } from '@/stores/auth';
+import { useToast } from '@/composables/use-toast';
+
+const toast = useToast();
 import { useRouter } from 'vue-router';
 import NotificationBell from '@/components/NotificationBell.vue';
 import BottomNav from '@/components/BottomNav.vue';
@@ -47,16 +50,19 @@ import OfflineIndicator from '@/components/OfflineIndicator.vue';
 const theme = useTheme();
 const authStore = useAuthStore();
 const router = useRouter();
-const isDark = ref(localStorage.getItem('theme') !== 'light');
+// 2026-06-13 (anh chốt): app LUÔN theme sáng 'hsLight' (giống DefaultLayout).
+// Toggle bị ẩn — giữ code để tránh phải refactor template, nhưng set hsLight cứng.
+const isDark = ref(false);
 
 onMounted(() => {
-  theme.global.name.value = isDark.value ? 'dark' : 'light';
+  theme.global.name.value = 'hsLight';
+  localStorage.setItem('theme', 'hsLight');
 });
 
 function toggleTheme() {
-  isDark.value = !isDark.value;
-  theme.global.name.value = isDark.value ? 'dark' : 'light';
-  localStorage.setItem('theme', isDark.value ? 'dark' : 'light');
+  // No-op: theme toggle đã bị ẹ theo anh chốt 2026-06-13 (app cố định light).
+  // Hàm giữ để khỏi refactor UI; click vẫn được nhưng không đổi gì.
+  toast.info('Hiện tại app đang dùng giao diện sáng');
 }
 
 function logout() {

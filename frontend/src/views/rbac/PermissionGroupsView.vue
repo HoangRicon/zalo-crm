@@ -239,6 +239,11 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useRbacStore, type PermissionGroupNode, type RbacUser } from '@/stores/rbac';
 import { api } from '@/api/index';
+import { useToast } from '@/composables/use-toast';
+import { useConfirm } from '@/composables/use-confirm';
+
+const toast = useToast();
+const confirm = useConfirm();
 
 const store = useRbacStore();
 const allUsers = ref<RbacUser[]>([]);
@@ -440,7 +445,7 @@ function flushSave() {
       justSaved.value = true;
       setTimeout(() => { justSaved.value = false; }, 1500);
     } catch (e: any) {
-      alert(e?.response?.data?.error || 'Lỗi cập nhật quyền');
+      toast.error(e?.response?.data?.error || 'Lỗi cập nhật quyền');
       // Lưu lỗi → nếu vẫn đang ở đúng nhóm đó, khôi phục bản nháp từ store.
       if (selected.value?.id === gid) {
         localGrants.value = JSON.parse(JSON.stringify(selected.value?.grants ?? {}));
@@ -469,10 +474,10 @@ function toggleGrant(r: string, a: string, v: boolean) {
   scheduleSave();
 }
 
-function tickAll(value: boolean) {
+async function tickAll(value: boolean) {
   if (!selected.value) return;
-  if (value && !confirm(`Tick TẤT CẢ quyền cho nhóm "${selected.value.name}"?`)) return;
-  if (!value && !confirm(`Bỏ tick TẤT CẢ quyền cho nhóm "${selected.value.name}"?`)) return;
+  if (value && !(await confirm({ title: `Tick TẤT CẢ quyền cho nhóm "${selected.value.name}"?`, tone: 'warning', confirmText: 'Tick tất cả', cancelText: 'Hủy' }))) return;
+  if (!value && !(await confirm({ title: `Bỏ tick TẤT CẢ quyền cho nhóm "${selected.value.name}"?`, tone: 'warning', confirmText: 'Bỏ tick', cancelText: 'Hủy' }))) return;
   const ng: Record<string, Record<string, boolean>> = {};
   for (const r of resources.value) {
     ng[r] = {};
@@ -510,7 +515,7 @@ async function doCopyFrom() {
   if (!selected.value || !copyFromId.value) return;
   const src = flatGroupsList.value.find((g) => g.id === copyFromId.value);
   if (!src) return;
-  if (!confirm(`Sao chép quyền từ "${src.name}" sang "${selected.value.name}"? Sẽ ghi đè quyền hiện tại của ${selected.value.name}.`)) return;
+  if (!(await confirm({ title: `Sao chép quyền từ "${src.name}" sang "${selected.value.name}"?`, description: `Sẽ ghi đè quyền hiện tại của ${selected.value.name}.`, tone: 'warning', confirmText: 'Sao chép', cancelText: 'Hủy' }))) return;
   localGrants.value = JSON.parse(JSON.stringify(src.grants ?? {}));
   scheduleSave();
   copyFromId.value = '';
@@ -518,13 +523,13 @@ async function doCopyFrom() {
 
 async function confirmArchive() {
   if (!selected.value) return;
-  if (!confirm(`Xóa nhóm "${selected.value.name}"? Chỉ xóa được khi nhóm rỗng.`)) return;
+  if (!(await confirm({ title: `Xóa nhóm "${selected.value.name}"?`, description: 'Chỉ xóa được khi nhóm rỗng.', tone: 'danger', confirmText: 'Xóa', cancelText: 'Hủy' }))) return;
   try {
     await api.delete(`/permission-groups/${selected.value.id}`);
     await store.loadPermissionGroups();
     selectedId.value = flatGroupsList.value[0]?.id ?? null;
   } catch (e: any) {
-    alert(e?.response?.data?.error || 'Lỗi xóa nhóm');
+    toast.error(e?.response?.data?.error || 'Lỗi xóa nhóm');
   }
 }
 
@@ -571,7 +576,7 @@ async function seedDefaults() {
     allUsers.value = data.users ?? [];
     if (!selectedId.value) selectedId.value = flatGroupsList.value[0]?.id ?? null;
   } catch (e: any) {
-    alert(e?.response?.data?.error || 'Lỗi seed');
+    toast.error(e?.response?.data?.error || 'Lỗi seed');
   } finally {
     seeding.value = false;
   }

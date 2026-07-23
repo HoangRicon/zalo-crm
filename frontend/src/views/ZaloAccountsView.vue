@@ -294,6 +294,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, onUnmounted, watch } from 'vue';
 import { useZaloAccountsDashboard } from '@/composables/use-zalo-accounts-dashboard';
+import { useToast } from '@/composables/use-toast';
 import StatsCards from '@/components/zalo-accounts/StatsCards.vue';
 import AccountsTable from '@/components/zalo-accounts/AccountsTable.vue';
 // SdkLimitsDialog dời sang trang Cài đặt SdkLimitsSettingsPage (2026-06-18) — ko import ở đây nữa.
@@ -314,7 +315,6 @@ import ZaloAccessDialog from '@/components/settings/ZaloAccessDialog.vue';
 import { api } from '@/api/index';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
-import { useToast } from '@/composables/use-toast';
 import { useConfirm } from '@/composables/use-confirm';
 import type { EnrichedAccount } from '@/composables/use-zalo-accounts-dashboard';
 
@@ -601,10 +601,10 @@ async function onWizardConfirmConnect() {
     // 409 trùng nick người khác → quay lại confirm, hiện thông báo chặn (fix ①).
     if (res.code === 'account_owned_by_other') {
       wizardStep.value = 'confirm';
-      alert(res.message); // box chặn đã hiện ở B2; alert backup nếu sale bỏ qua check
+      toast.error(res.message); // box chặn đã hiện ở B2; toast backup nếu sale bỏ qua check
     } else {
       wizardStep.value = 'phone';
-      alert(res.message || 'Không tạo được nick. Thử lại.');
+      toast.error(res.message || 'Không tạo được nick. Thử lại.');
     }
     return;
   }
@@ -617,7 +617,7 @@ async function onWizardConfirmConnect() {
   // KHÔNG fetch list rồi đoán `list[length-1]` (sai nick nếu list sort khác created-asc hoặc 2
   // sale tạo nick song song → login QR nhầm nick).
   if (res.account?.id) await loginAccount(res.account.id);
-  else { wizardStep.value = 'phone'; alert('Không lấy được nick vừa tạo. Thử lại.'); }
+  else { wizardStep.value = 'phone'; toast.error('Không lấy được nick vừa tạo. Thử lại.'); }
 }
 
 // Trùng nick CỦA CHÍNH MÌNH → 2026-06-21 (anh chốt): QUÉT QR MỚI thẳng trên record cũ (revive),
@@ -673,7 +673,7 @@ watch(showQRDialog, async (open, was) => {
 watch(duplicateInfo, (info) => {
   if (!info) return;
   closeWizard();
-  alert(info.message);
+  toast.error(info.message);
   (duplicateInfo as any).value = null; // reset để lần sau còn trigger
 });
 
@@ -808,7 +808,7 @@ async function onRemoveCrew(payload: { accountId: string; accessId: string }) {
     await api.delete(`/zalo-accounts/${payload.accountId}/access/${payload.accessId}`);
     await refreshAll();
   } catch (e: any) {
-    alert('Bỏ gán thất bại: ' + (e.response?.data?.error || e.message));
+    toast.error('Bỏ gán thất bại: ' + (e.response?.data?.error || e.message));
   }
 }
 
@@ -832,7 +832,7 @@ async function onBulkAction(action: 'reconnect' | 'sync-contacts' | 'disable') {
   try {
     const res = await bulkAction(action);
     if (res) {
-      alert(`Hoàn tất: ${res.ok}/${res.total} thành công${res.failed ? `, ${res.failed} lỗi` : ''}`);
+      toast.success(`Hoàn tất: ${res.ok}/${res.total} thành công${res.failed ? `, ${res.failed} lỗi` : ''}`);
       clearSelection();
     }
   } finally {

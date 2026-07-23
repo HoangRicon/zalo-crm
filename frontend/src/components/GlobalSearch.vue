@@ -149,7 +149,9 @@ function debouncedSearch(val: string | null) {
 function goTo(path: string, _id?: string) {
   showResults.value = false;
   query.value = '';
-  router.push(path);
+  // FIX 2026-07-24 (audit #31ecc169): trước đây `_id` được nhận nhưng bị bỏ qua,
+  // search "Nguyễn Văn A" → click → mở list thay vì profile. Nối ID vào path.
+  router.push(_id ? `${path}/${_id}` : path);
 }
 
 function truncate(s: string | null, len: number): string {

@@ -219,7 +219,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { api } from '@/api';
+import { useToast } from '@/composables/use-toast';
+import { useConfirm } from '@/composables/use-confirm';
 import ZaloBrandIcon from '@/components/icons/ZaloBrandIcon.vue';
+
+const toast = useToast();
+const confirm = useConfirm();
 
 interface ZaloAccount {
   id: string;
@@ -406,7 +411,7 @@ async function saveTag() {
       };
       const res = await api.patch(`/tags/${editTag.value.id}`, body);
       if (res.data.pushedZalo) {
-        alert('Đã lưu zalocrm + push ngược lên Zalo Real qua nick "' + editTag.value.zaloAccount?.displayName + '"');
+        toast.success('Đã lưu zalocrm + push ngược lên Zalo Real qua nick "' + editTag.value.zaloAccount?.displayName + '"');
       }
     } else {
       // Create
@@ -424,12 +429,12 @@ async function saveTag() {
     const msg = (err as { response?: { data?: { message?: string; error?: string } } })?.response?.data?.message
       ?? (err as { response?: { data?: { error?: string } } })?.response?.data?.error
       ?? 'Lưu thất bại';
-    alert(msg);
+    toast.error(msg);
   }
 }
 
 async function archiveTag(tagId: string) {
-  if (!confirm('Archive tag này? Junction giữ nguyên nhưng tag không xuất hiện trong autocomplete.')) return;
+  if (!(await confirm({ title: 'Archive tag này?', description: 'Junction giữ nguyên nhưng tag không xuất hiện trong autocomplete.', tone: 'warning', confirmText: 'Archive', cancelText: 'Hủy' }))) return;
   try {
     await api.delete(`/tags/${tagId}`);
     await loadTags();
@@ -449,12 +454,12 @@ async function confirmMerge() {
       sourceTagId: mergeSource.value.id,
       targetTagId: mergeTargetId.value,
     });
-    alert(res.data.skipped ? `Merge bỏ qua: ${res.data.skipped}` : `Merge thành công. ${res.data.moved} junction rows moved.`);
+    toast.success(res.data.skipped ? `Merge bỏ qua: ${res.data.skipped}` : `Merge thành công. ${res.data.moved} junction rows moved.`);
     showMergeDialog.value = false;
     await loadTags();
   } catch (err) {
     const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Merge thất bại';
-    alert(msg);
+    toast.error(msg);
   }
 }
 

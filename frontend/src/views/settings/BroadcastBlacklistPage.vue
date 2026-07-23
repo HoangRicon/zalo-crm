@@ -36,6 +36,9 @@
 import { ref, onMounted } from 'vue';
 import { api } from '@/api/index';
 import BlacklistToggle from '@/components/marketing/BlacklistToggle.vue';
+import { useToast } from '@/composables/use-toast';
+
+const toast = useToast();
 
 interface Account {
   id: string;
@@ -75,7 +78,7 @@ function onChange(acc: Account, val: boolean) {
     .catch((e: any) => {
       acc.broadcastBlacklisted = prev; // rollback
       console.error('[BroadcastBlacklist] persist failed', e);
-      alert(e?.response?.data?.error || 'Cập nhật blacklist thất bại');
+      toast.error(e?.response?.data?.error || 'Cập nhật blacklist thất bại');
     });
 }
 

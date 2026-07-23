@@ -99,7 +99,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { autoReplyApi, type AutoReplyRule, type TriggerType, type ActionType } from '@/api/auto-reply';
+import { useToast } from '@/composables/use-toast';
+import { useConfirm } from '@/composables/use-confirm';
 
+const toast = useToast();
+const confirm = useConfirm();
 const rules = ref<AutoReplyRule[]>([]);
 const loading = ref(true);
 const saving = ref(false);
@@ -164,7 +168,7 @@ function openEdit(r: AutoReplyRule) {
 
 async function save() {
   if (!form.value.name?.trim()) {
-    alert('Tên rule là bắt buộc');
+    toast.error('Tên rule là bắt buộc');
     return;
   }
   saving.value = true;
@@ -177,7 +181,7 @@ async function save() {
     dialogOpen.value = false;
     await load();
   } catch (e: any) {
-    alert(e?.response?.data?.error || 'Lỗi lưu rule');
+    toast.error(e?.response?.data?.error || 'Lỗi lưu rule');
   } finally {
     saving.value = false;
   }
@@ -188,17 +192,17 @@ async function toggleEnabled(r: AutoReplyRule) {
     await autoReplyApi.update(r.id, { enabled: !r.enabled });
     r.enabled = !r.enabled;
   } catch (e: any) {
-    alert('Lỗi cập nhật');
+    toast.error('Lỗi cập nhật');
   }
 }
 
 async function del(r: AutoReplyRule) {
-  if (!confirm(`Xóa rule "${r.name}"?`)) return;
+  if (!(await confirm({ title: `Xóa rule "${r.name}"?`, tone: 'danger', confirmText: 'Xóa', cancelText: 'Hủy' }))) return;
   try {
     await autoReplyApi.delete(r.id);
     await load();
   } catch (e: any) {
-    alert('Lỗi xóa');
+    toast.error('Lỗi xóa');
   }
 }
 

@@ -314,8 +314,10 @@ import type { AccountFolder } from '@/composables/use-inbox-filters';
 import { useZaloAccounts, type ZaloAccount } from '@/composables/use-zalo-accounts';
 import { api } from '@/api/index';
 import { useToast } from '@/composables/use-toast';
+import { useConfirm } from '@/composables/use-confirm';
 
 const toast = useToast();
+const confirm = useConfirm();
 
 const props = defineProps<{
   modelValue: boolean;
@@ -576,7 +578,7 @@ async function onSave() {
     }
   } catch (err) {
     console.error('[FolderManagePopup] save failed', err);
-    alert('Lưu thất bại. Vui lòng thử lại.');
+    toast.error('Lưu thất bại. Vui lòng thử lại.');
   } finally {
     saving.value = false;
   }
@@ -584,7 +586,13 @@ async function onSave() {
 
 async function onDeleteFolder() {
   if (!editingFolder.value) return;
-  if (!window.confirm(`Xoá thư mục "${editingFolder.value.name}"? Hành động này không thể hoàn tác.`)) return;
+  if (!(await confirm({
+    title: `Xoá thư mục "${editingFolder.value.name}"?`,
+    description: 'Hành động này không thể hoàn tác.',
+    tone: 'danger',
+    confirmText: 'Xoá',
+    cancelText: 'Huỷ',
+  }))) return;
   saving.value = true;
   try {
     await props.filters.deleteFolder(editingFolder.value.id);
@@ -593,7 +601,7 @@ async function onDeleteFolder() {
     formAccountIds.value = new Set();
   } catch (err) {
     console.error('[FolderManagePopup] delete failed', err);
-    alert('Xoá thất bại. Vui lòng thử lại.');
+    toast.error('Xoá thất bại. Vui lòng thử lại.');
   } finally {
     saving.value = false;
   }

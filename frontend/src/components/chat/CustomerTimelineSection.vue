@@ -683,9 +683,9 @@ defineExpose({ rootCount: rootNoteCount });
   min-height: 22px;
   max-height: 120px;
   padding: 4px 0;
-  white-space: nowrap;        /* placeholder không wrap */
+  white-space: pre-wrap;        /* giữ linebreak khi paste text dài */
   overflow-x: hidden;
-  text-overflow: ellipsis;
+  overflow-y: auto;            /* FIX 2026-07-24: scroll khi paste text vượt max-height */
 }
 .note-input::placeholder {
   color: var(--smax-grey-400, #b0b8c1);   /* mờ rõ ràng */

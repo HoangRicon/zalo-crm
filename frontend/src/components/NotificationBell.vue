@@ -8,7 +8,7 @@
     <template #activator="{ props: menuProps }">
       <v-btn icon variant="text" v-bind="menuProps" class="mr-1">
         <v-badge
-          :content="notifications.length"
+          :content="badgeText"
           :model-value="notifications.length > 0"
           color="error"
           overlap
@@ -45,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '@/api/index';
 
@@ -60,6 +60,8 @@ interface Notification {
 const notifications = ref<Notification[]>([]);
 const router = useRouter();
 const bellMenu = ref(false); // 2026-06-09 — điều khiển đóng menu chủ động
+// FIX 2026-07-24: badge "99+" thay vì "156" khi > 99 → không phình badge trên header.
+const badgeText = computed(() => notifications.value.length > 99 ? '99+' : String(notifications.value.length));
 let interval: ReturnType<typeof setInterval>;
 
 async function fetchNotifications() {

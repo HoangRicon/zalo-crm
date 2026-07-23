@@ -230,10 +230,12 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '@/api/index';
+import { useToast } from '@/composables/use-toast';
 import type { Contact } from '@/composables/use-contacts';
 import PrivateBlur from '@/components/privacy/PrivateBlur.vue';
 
 const router = useRouter();
+const toast = useToast();
 
 const props = defineProps<{ contact: Contact }>();
 const emit = defineEmits<{ close: []; 'go-chat': []; saved: []; edit: [] }>();
@@ -464,7 +466,7 @@ async function openVirtualChat() {
     await router.push({ path: '/chat', query: { conversationId: convId } });
   } catch (e: any) {
     const msg = e?.response?.data?.message || e?.message || 'Lỗi mở chat nội bộ';
-    alert(msg);
+    toast.error(msg);
   } finally {
     virtualLoading.value = false;
   }

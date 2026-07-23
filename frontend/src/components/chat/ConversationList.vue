@@ -314,6 +314,7 @@
 import { ref, reactive, watch, onMounted, onBeforeUnmount, computed, nextTick } from 'vue';
 import type { Conversation, AiSentiment } from '@/composables/use-chat';
 import { api } from '@/api/index';
+import { useToast } from '@/composables/use-toast';
 // Icon chrome — Lucide line (anh chốt 2026-06-08, bỏ ký tự thô).
 import { ChevronUp as ChevronUpIcon, X as XIcon } from 'lucide-vue-next';
 import AiSentimentBadge from '@/components/ai/ai-sentiment-badge.vue';
@@ -380,6 +381,7 @@ const emit = defineEmits<{
 //  - Pick nick từ popup → đóng popup + mở NewMessageDialog với
 //    defaultAccountId + initialQuery=search box.
 const newMsgOpen = ref(false);
+const toast = useToast();
 const newMsgPickerOpen = ref(false);
 const newMsgBtnEl = ref<HTMLElement | null>(null);
 const searchInputEl = ref<HTMLInputElement | null>(null);
@@ -743,7 +745,7 @@ async function toggleFollowFromMenu() {
         data: { contactId: contextMenu.contactId, nickId: contextMenu.nickId },
       });
       if ((res.data?.closed ?? 0) === 0) {
-        window.alert('Khách đang trong luồng bám đuổi tự động — dừng/tạm dừng ở thẻ luồng (tab Theo dõi), không bỏ theo dõi ở đây.');
+        toast.warning('Khách đang trong luồng bám đuổi tự động — dừng/tạm dừng ở thẻ luồng (tab Theo dõi), không bỏ theo dõi ở đây.');
         // giữ nguyên isFollowing + chuông (phiên auto vẫn mở)
       } else {
         contextMenu.isFollowing = false;
@@ -759,7 +761,7 @@ async function toggleFollowFromMenu() {
     }
   } catch (err) {
     console.error('[care-listen] toggle failed', err);
-    window.alert('Lỗi cập nhật theo dõi — thử lại sau');
+    toast.error('Lỗi cập nhật theo dõi — thử lại sau');
   } finally {
     contextMenu.followBusy = false;
   }
@@ -789,7 +791,7 @@ async function confirmDeleteConversation() {
     closeDeleteDialog();
   } catch (err) {
     console.error('Failed to delete conversation:', err);
-    window.alert('Lỗi xóa hội thoại — thử lại sau');
+    toast.error('Lỗi xóa hội thoại — thử lại sau');
     deleteDialog.busy = false;
   }
 }

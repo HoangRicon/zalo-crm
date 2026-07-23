@@ -223,6 +223,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { useToast } from '@/composables/use-toast';
+import { useConfirm } from '@/composables/use-confirm';
 import {
   getTemplates,
   searchTemplates,
@@ -243,6 +244,7 @@ import TemplateEditor from '@/components/templates/TemplateEditor.vue';
 import TemplateFolderTree from '@/components/templates/TemplateFolderTree.vue';
 
 const toast = useToast();
+const confirm = useConfirm();
 
 // ── State ────────────────────────────────────────────────────────────────────
 const templates = ref<MessageTemplate[]>([]);
@@ -427,7 +429,7 @@ async function onSaveTemplate(formData: CreateTemplateData) {
 }
 
 async function onDeleteTemplate(template: MessageTemplate) {
-  if (!confirm(`Xoá mẫu tin "${template.name}"?`)) return;
+  if (!(await confirm({ title: `Xoá mẫu tin "${template.name}"?`, tone: 'danger', confirmText: 'Xoá', cancelText: 'Huỷ' }))) return;
   try {
     await deleteTemplate(template.id);
     templates.value = templates.value.filter(t => t.id !== template.id);
@@ -488,7 +490,7 @@ async function onSaveFolder() {
 }
 
 async function onDeleteFolder(folder: MessageTemplateFolder) {
-  if (!confirm(`Xoá thư mục "${folder.name}"? Mẫu tin trong thư mục sẽ chuyển ra ngoài.`)) return;
+  if (!(await confirm({ title: `Xoá thư mục "${folder.name}"?`, description: 'Mẫu tin trong thư mục sẽ chuyển ra ngoài.', tone: 'danger', confirmText: 'Xoá', cancelText: 'Huỷ' }))) return;
   try {
     await deleteFolder(folder.id);
     toast.success('Đã xoá thư mục');

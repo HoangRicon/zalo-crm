@@ -93,10 +93,10 @@
           <button class="fw-btn fw-btn--ghost" @click="emit('update:modelValue', false)">Huỷ</button>
           <button
             class="fw-btn fw-btn--primary"
-            :disabled="selectedSet.size === 0"
+            :disabled="selectedSet.size === 0 || forwarding"
             @click="onForward"
           >
-            Chuyển tiếp
+            {{ forwarding ? 'Đang gửi…' : 'Chuyển tiếp' }}
           </button>
         </div>
       </footer>
@@ -137,6 +137,9 @@ const emit = defineEmits<{
 const query = ref('');
 const selectedSet = ref(new Set<string>());
 const brokenAvatars = ref(new Set<string>());
+// FIX 2026-07-24: loading state để disable nút "Chuyển tiếp" khi đang gọi API,
+// tránh click nhiều lần → gửi trùng → spam cho người nhận.
+const forwarding = ref(false);
 
 // Reset selection mỗi lần dialog mở (tránh dirty state cross-session)
 watch(() => props.modelValue, (open) => {
@@ -144,6 +147,7 @@ watch(() => props.modelValue, (open) => {
     selectedSet.value = new Set();
     query.value = '';
     brokenAvatars.value = new Set();
+    forwarding.value = false;
   }
 });
 
@@ -212,10 +216,15 @@ function toggleSelect(id: string) {
   selectedSet.value = next;
 }
 
-function onForward() {
-  if (selectedSet.value.size === 0) return;
-  emit('forward', Array.from(selectedSet.value));
-  emit('update:modelValue', false);
+async function onForward() {
+  if (selectedSet.value.size === 0 || forwarding.value) return;
+  forwarding.value = true;
+  try {
+    emit('forward', Array.from(selectedSet.value));
+    emit('update:modelValue', false);
+  } finally {
+    forwarding.value = false;
+  }
 }
 
 // Live "now" ticker (2026-06-11) — cùng cơ chế ConversationList: ref `now` cập

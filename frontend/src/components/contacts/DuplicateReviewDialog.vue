@@ -175,6 +175,9 @@
 import { ref, computed, watch, reactive, h, defineComponent, type PropType } from 'vue';
 import Avatar from '@/components/ui/Avatar.vue';
 import { useContactIntelligence } from '@/composables/use-contacts';
+import { useConfirm } from '@/composables/use-confirm';
+
+const confirm = useConfirm();
 import { useToast } from '@/composables/use-toast';
 import { formatInOrgTz } from '@/composables/use-org-timezone';
 
@@ -345,7 +348,7 @@ async function onMerge(groupId: string) {
 }
 
 async function onDismiss(groupId: string) {
-  if (!confirm('Bỏ qua nhóm này — đánh dấu KH không phải trùng?')) return;
+  if (!(await confirm({ title: 'Bỏ qua nhóm này?', description: 'Đánh dấu KH không phải trùng.', tone: 'warning', confirmText: 'Bỏ qua', cancelText: 'Hủy' }))) return;
   dismissing.value = groupId;
   const ok = await dismissDuplicateGroup(groupId);
   dismissing.value = null;

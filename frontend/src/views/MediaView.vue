@@ -210,6 +210,7 @@ import {
   type MediaAssetItem, type MediaFolder, type TrashItem,
 } from '@/api/media';
 import { useToast } from '@/composables/use-toast';
+import { useConfirm } from '@/composables/use-confirm';
 import MediaDetailPanel from '@/components/media/MediaDetailPanel.vue';
 import {
   Trash2 as Trash2Icon, RotateCcw as RotateCcwIcon, X as XIcon, CheckSquare as CheckSquareIcon,
@@ -224,6 +225,7 @@ function kindIcon(kind: string) {
 }
 
 const toast = useToast();
+const confirm = useConfirm();
 
 // Nhãn + icon NGUỒN ảnh (2026-06-15): "nick nào · sale nào" hoặc "Tải lên thủ công · sale".
 function sourceLabel(a: MediaAssetItem): string {
@@ -389,7 +391,13 @@ async function onBulkTag() {
 async function onBulkTrash() {
   const ids = [...picked.value];
   if (ids.length === 0) return;
-  if (!window.confirm(`Chuyển ${ids.length} mục vào Thùng rác?\n(Khôi phục được trong 30 ngày. Lịch sử chat đã gửi không bị ảnh hưởng.)`)) return;
+  if (!(await confirm({
+    title: `Chuyển ${ids.length} mục vào Thùng rác?`,
+    description: 'Khôi phục được trong 30 ngày. Lịch sử chat đã gửi không bị ảnh hưởng.',
+    tone: 'warning',
+    confirmText: 'Chuyển vào thùng rác',
+    cancelText: 'Hủy',
+  }))) return;
   try {
     // Tái dùng archiveMedia (DELETE /media/:id = vào thùng rác) — chạy tuần tự cho an toàn.
     let ok = 0;
@@ -493,7 +501,13 @@ async function onRestore(a: TrashItem) {
   }
 }
 async function onPermanentDelete(a: TrashItem) {
-  if (!window.confirm(`Xóa vĩnh viễn "${a.name}"? Sẽ KHÔNG khôi phục được nữa.\n(Lịch sử chat đã gửi không bị ảnh hưởng.)`)) return;
+  if (!(await confirm({
+    title: `Xóa vĩnh viễn "${a.name}"?`,
+    description: 'Sẽ KHÔNG khôi phục được nữa. (Lịch sử chat đã gửi không bị ảnh hưởng.)',
+    tone: 'danger',
+    confirmText: 'Xóa vĩnh viễn',
+    cancelText: 'Hủy',
+  }))) return;
   try {
     await permanentDeleteMedia(a.id);
     trashItems.value = trashItems.value.filter((x) => x.id !== a.id);
@@ -504,7 +518,13 @@ async function onPermanentDelete(a: TrashItem) {
 }
 async function onEmptyTrash() {
   if (trashItems.value.length === 0) return;
-  if (!window.confirm(`Dọn sạch Thùng rác (${trashItems.value.length} mục)? Sẽ KHÔNG khôi phục được.\n(Lịch sử chat đã gửi không bị ảnh hưởng.)`)) return;
+  if (!(await confirm({
+    title: `Dọn sạch Thùng rác (${trashItems.value.length} mục)?`,
+    description: 'Sẽ KHÔNG khôi phục được. (Lịch sử chat đã gửi không bị ảnh hưởng.)',
+    tone: 'danger',
+    confirmText: 'Dọn sạch',
+    cancelText: 'Hủy',
+  }))) return;
   try {
     const res = await emptyTrash();
     toast.success(`Đã dọn ${res.deleted} mục${res.hasMore ? ' (còn nữa, bấm lại để dọn tiếp)' : ''}`);

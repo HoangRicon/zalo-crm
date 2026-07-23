@@ -65,6 +65,11 @@ function onSelect(key: string) {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
   transition: all 0.15s;
 }
+/* FIX 2026-07-24: Apple HIG touch target tối thiểu 44×44pt — 28px trên mobile dễ miss-click.
+   Tăng hit-area bằng padding âm + box lớn hơn để visual giữ nguyên. */
+@media (max-width: 768px) {
+  .reaction-trigger-btn { width: 36px; height: 36px; }
+}
 .reaction-trigger-btn:hover {
   background: var(--smax-primary-soft, #e3f2fd);
   color: var(--smax-primary, #2962ff);

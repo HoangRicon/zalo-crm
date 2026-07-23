@@ -207,8 +207,8 @@
       </v-card>
 
       <!-- ════════ STATE 3 / 4: ROSTER (completed / partial) ════════ -->
-      <v-card v-else-if="phase === 'roster'" variant="outlined">
-        <div class="d-flex align-center gap-3 pa-4 border-b">
+      <v-card v-else-if="phase === 'roster'" variant="outlined" class="d-flex flex-column" style="overflow: hidden; height: 100%;">
+        <div class="d-flex align-center gap-3 pa-4 border-b flex-shrink-0">
           <div>
             <div class="text-subtitle-1 font-weight-bold">Thành viên đã quét</div>
             <div class="text-caption text-medium-emphasis">
@@ -240,7 +240,13 @@
           <b>Quét thất bại.</b> Vui lòng thử lại — phần thành viên đã lưu (nếu có) vẫn hiển thị bên dưới.
         </v-alert>
 
-        <!-- search + filter segments -->
+        <!-- safety tip -->
+        <v-alert type="info" variant="tonal" density="compact" class="ma-3 mb-0" icon="mdi-information">
+          <b>Mẹo an toàn:</b> Người lạ chưa kết bạn — nhắn hàng loạt dễ bị khóa nick.
+          Chiến dịch nên lọc <b>"Là bạn"</b> hoặc bật bước kết bạn trước.
+        </v-alert>
+
+        <!-- search + filter -->
         <div class="d-flex align-center gap-3 pa-3 border-b flex-wrap">
           <v-text-field
             v-model="memberSearch"
@@ -267,22 +273,16 @@
           </v-btn-toggle>
         </div>
 
-        <!-- alerts sit outside scroll area -->
-        <v-alert type="info" variant="tonal" density="compact" class="ma-4 mb-0" icon="mdi-information">
-          <b>Mẹo an toàn:</b> Người lạ chưa kết bạn — nhắn hàng loạt dễ bị khóa nick.
-          Chiến dịch nên lọc <b>"Là bạn"</b> hoặc bật bước kết bạn trước.
-        </v-alert>
-
-        <!-- scrollable table: wrap in overflow div so table scrolls internally -->
-        <div class="gs-roster-table-wrap">
-          <v-data-table
+        <!-- scrollable table: fills remaining height -->
+        <v-data-table
             :headers="memberHeaders"
             :items="filteredMembers"
             :loading="scanMembersLoading"
             :search="memberSearch"
             item-value="id"
             density="comfortable"
-            class="gs-members-table"
+            fixed-header
+            height="calc(100vh - 340px)"
           >
           <template #item.member="{ item }">
             <div class="d-flex align-center gap-3 py-1">
@@ -530,17 +530,6 @@ onBeforeUnmount(stopPolling);
 .sticky-bar {
   position: sticky;
   bottom: 0;
-  background: rgb(var(--v-theme-surface));
-  z-index: 1;
-}
-.gs-roster-table-wrap {
-  overflow-y: auto;
-  max-height: calc(100vh - 360px);
-  min-height: 200px;
-}
-.gs-members-table :deep(thead th) {
-  position: sticky;
-  top: 0;
   background: rgb(var(--v-theme-surface));
   z-index: 1;
 }

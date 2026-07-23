@@ -237,7 +237,7 @@ async function fetchListenStatus(): Promise<void> {
   }
   try {
     const res = await api.get<{ listening: boolean; isManualWatch?: boolean }>(
-      '/automation/care-sessions/listen-status',
+      '/care-sessions/listen-status',
       { params: { contactId: props.contactId, nickId: props.nickId } },
     );
     isListening.value = res.data.listening === true;
@@ -259,13 +259,13 @@ async function toggleListen(): Promise<void> {
   watchBusy.value = true;
   try {
     if (isListening.value) {
-      await api.delete('/automation/care-sessions/listen', {
+      await api.delete('/care-sessions/listen', {
         data: { contactId: props.contactId, nickId: props.nickId },
       });
       isListening.value = false;
       isManualWatch.value = false;
     } else {
-      await api.post('/automation/care-sessions/listen', {
+      await api.post('/care-sessions/listen', {
         contactId: props.contactId,
         nickId: props.nickId,
       });

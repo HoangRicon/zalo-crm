@@ -9,7 +9,7 @@
         <p class="sv-sub">Drip campaigns tự động cho KH đã enroll</p>
       </div>
       <div class="sv-actions">
-        <button class="btn-secondary" @click="goBack">← Quay lại /automation</button>
+        <button class="btn-secondary" @click="goBack">← Quay lại Automation Hub</button>
         <button class="btn-primary" @click="newSequence">+ Sequence mới</button>
       </div>
     </header>

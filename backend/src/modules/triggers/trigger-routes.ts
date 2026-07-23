@@ -216,4 +216,29 @@ export async function triggerRoutes(app: FastifyInstance): Promise<void> {
     }));
     return { pairs };
   });
+
+  // GET /api/v1/care-sessions/listen-status — check if a contact×nick pair is being followed
+  app.get('/api/v1/care-sessions/listen-status', async (request, reply) => {
+    const user = request.user!;
+    const { contactId, nickId } = (request.query || {}) as { contactId?: string; nickId?: string };
+    if (!contactId || !nickId) {
+      return reply.status(400).send({ error: 'contactId and nickId are required' });
+    }
+    const session = await prisma.careSession.findFirst({
+      where: {
+        orgId: user.orgId,
+        contactId,
+        nickId,
+        state: 'active',
+      },
+      select: {
+        id: true,
+        sourceType: true,
+      },
+    });
+    return {
+      listening: !!session,
+      isManualWatch: session?.sourceType === 'manual',
+    };
+  });
 }

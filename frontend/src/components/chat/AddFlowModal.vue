@@ -54,13 +54,15 @@
                 <a href="/marketing/sequences" target="_blank">Tạo luồng mới →</a>
               </div>
 
-              <button
+              <div
                 v-for="seq in sequences"
                 :key="seq.id"
-                type="button"
                 class="afm-opt"
                 :class="{ sel: selectedSequenceId === seq.id }"
+                role="button"
+                tabindex="0"
                 @click="selectedSequenceId = seq.id"
+                @keydown.enter="selectedSequenceId = seq.id"
               >
                 <span class="afm-radio" />
                 <span class="afm-opt-ic">
@@ -76,11 +78,11 @@
                   </span>
                   <span class="afm-opt-start">▸ Bắt đầu ngay khi KH được gắn vào luồng</span>
                 </span>
-                <button type="button" class="afm-preview-btn" title="Xem trước tin nhắn sẽ gửi" @click="openPreview(seq, $event)">
+                <button type="button" class="afm-preview-btn" title="Xem trước tin nhắn sẽ gửi" @click.stop="openPreview(seq, $event)">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                   Xem trước
                 </button>
-              </button>
+              </div>
             </div>
 
             <!-- Nick auto-pin -->

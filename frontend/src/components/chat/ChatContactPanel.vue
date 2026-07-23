@@ -491,7 +491,7 @@
     </div>
 
     <!-- ════════ TAB AI (Trợ lý chat) ════════ -->
-    <div v-if="mainTab === 'ai'" class="main-tab-body">
+    <div v-if="mainTab === 'ai'" class="main-tab-body" style="align-items: stretch;">
       <div class="ai-tab-header">
         <div class="ai-tab-title">✨ Trợ lý AI</div>
         <div class="ai-tab-sub">Hỏi đáp về sản phẩm, gợi ý chăm sóc KH</div>

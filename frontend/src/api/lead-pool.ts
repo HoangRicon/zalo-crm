@@ -145,9 +145,15 @@ export async function getPooledLeads(params: {
   return res.data;
 }
 
-/** Request a lead from pool */
-export async function requestLead(): Promise<LeadDistribution> {
-  const res = await api.post<{ distribution: LeadDistribution }>('/lead-pool/request');
+/** Request a lead from pool.
+ *  FIX 2026-07-24: accepts optional `{ leadId }` so UI can claim a SPECIFIC lead row
+ *  (was silently claiming the next-default lead → user click on row A got row B).
+ *  Backend service should respect `leadId` when provided and fall back to FIFO otherwise. */
+export async function requestLead(data?: { leadId?: string }): Promise<LeadDistribution> {
+  const res = await api.post<{ distribution: LeadDistribution }>(
+    '/lead-pool/request',
+    data ?? {},
+  );
   return res.data.distribution;
 }
 

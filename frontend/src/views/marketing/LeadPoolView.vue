@@ -441,7 +441,7 @@ async function onClaimLead(lead: PooledLead) {
   claimError.value = '';
   try {
     const { requestLead } = await import('@/api/lead-pool');
-    await requestLead();
+    await requestLead({ leadId: lead.id });
     // Refresh list + stats
     await Promise.all([fetchPoolLeads(), fetchStats()]);
   } catch (e: any) {

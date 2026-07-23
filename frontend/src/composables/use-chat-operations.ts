@@ -118,6 +118,16 @@ export function useChatOperations() {
     );
   }
 
+  // FIX 2026-07-24: unregister to prevent duplicate handlers across ChatView mounts.
+  function unregisterSocketListeners(socket: Socket | null) {
+    if (!socket) return;
+    socket.off('chat:typing');
+    socket.off('chat:message-edited');
+    // Clear pending typing timers (chat-ops local Map, distinct from use-chat.ts typingTimers).
+    for (const t of typingTimers.values()) clearTimeout(t);
+    typingTimers.clear();
+  }
+
   return {
     typingUsers,
     replyingTo,
@@ -134,5 +144,6 @@ export function useChatOperations() {
     setEditing,
     clearEditing,
     registerSocketListeners,
+    unregisterSocketListeners,
   };
 }

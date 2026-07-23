@@ -65,7 +65,18 @@ async function fetchAccounts() {
 }
 
 function onChange(acc: Account, val: boolean) {
+  // FIX 2026-07-24: persist toggle via backend (was only mutating local state → lost on reload).
+  // Optimistic update, rollback on failure. Server endpoint:
+  //   PUT /api/v1/zalo-accounts/:id/broadcast-blacklist  { blacklisted, reason? }
+  const prev = acc.broadcastBlacklisted;
   acc.broadcastBlacklisted = val;
+  api
+    .put(`/zalo-accounts/${acc.id}/broadcast-blacklist`, { blacklisted: val })
+    .catch((e: any) => {
+      acc.broadcastBlacklisted = prev; // rollback
+      console.error('[BroadcastBlacklist] persist failed', e);
+      alert(e?.response?.data?.error || 'Cập nhật blacklist thất bại');
+    });
 }
 
 onMounted(fetchAccounts);

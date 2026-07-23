@@ -301,7 +301,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted, computed, nextTick } from 'vue';
+import { ref, reactive, watch, onMounted, onBeforeUnmount, computed, nextTick } from 'vue';
 import type { Conversation, AiSentiment } from '@/composables/use-chat';
 import { api } from '@/api/index';
 // Icon chrome — Lucide line (anh chốt 2026-06-08, bỏ ký tự thô).
@@ -1158,6 +1158,16 @@ function onPatternLeave() {
   }
   patternTipVisible.value = false;
 }
+
+// FIX 2026-07-24: clear pending tooltip timer + DOM ref map on unmount
+// (was leaking across ChatView mount cycles).
+onBeforeUnmount(() => {
+  if (patternTipTimer) {
+    clearTimeout(patternTipTimer);
+    patternTipTimer = null;
+  }
+  rowRefs.clear();
+});
 </script>
 
 <style scoped>

@@ -202,8 +202,7 @@ const dragState = ref<{ target: DragTarget; startX: number } | null>(null);
 const chatGridEl = ref<HTMLElement | null>(null);
 
 function startDrag(e: MouseEvent, target: DragTarget) {
-  chatGridEl.value = (e.currentTarget as HTMLElement).parentElement as HTMLElement;
-  dragState.value = { target, startX: e.clientX };
+  // Draggable disabled - fixed layout
   e.preventDefault();
   e.stopPropagation();
 }
@@ -281,6 +280,7 @@ const {
   editMessage, forwardMessage,
   setReplyTo, clearReplyTo, setEditing, clearEditing,
   registerSocketListeners,
+  unregisterSocketListeners,
 } = useChatOperations();
 
 // ════════ Auth (cần để compute isOwnedByMe fallback cho accountList) ════════
@@ -796,7 +796,8 @@ onMounted(async () => {
     const _socket = getSocket();
     if (_socket) {
       _socket.emit('org:join', { orgId: authStore.user?.orgId });
-      _socket.on('friend:updated', (p: {
+      // FIX 2026-07-24: store handler ref so we can unregister on unmount (was leaking per mount)
+      friendUpdatedHandler = (p: {
         contactId?: string;
         zaloUidInNick?: string;
         patch?: { statusId?: string | null; zaloLabels?: Array<{ id?: number; name?: string; color?: string }> };
@@ -824,7 +825,8 @@ onMounted(async () => {
             c.friendship.zaloLabels = p.patch.zaloLabels;
           }
         }
-      });
+      };
+      _socket.on('friend:updated', friendUpdatedHandler);
     }
     // Nếu URL đã có /chat/:convId → select luôn (deep-link)
     const initId = route.params.convId;
@@ -840,6 +842,12 @@ onMounted(async () => {
 });
 onUnmounted(() => {
   if (!isMobile.value) {
+    // FIX 2026-07-24: unregister all listeners BEFORE destroySocket so the same handler
+    // ref is removed (destroySocket also unregisters, but explicit is safer).
+    const _socket = getSocket();
+    if (_socket && friendUpdatedHandler) _socket.off('friend:updated', friendUpdatedHandler);
+    friendUpdatedHandler = null;
+    unregisterSocketListeners(_socket);
     destroySocket();
     window.removeEventListener('zalo-labels-synced', onLabelsSynced);
     window.removeEventListener('chat:inbound-message', refreshPriorityUnread);
@@ -852,6 +860,15 @@ function onPanelStatusChanged(statusId: string | null) {
     (selectedConv.value.contact as { statusId?: string | null }).statusId = statusId;
   }
 }
+
+// FIX 2026-07-24: keep ref to friend:updated socket handler so onUnmounted can .off() it
+// (was previously registered inline → leaked across ChatView mount cycles).
+type FriendUpdatedPayload = {
+  contactId?: string;
+  zaloUidInNick?: string;
+  patch?: { statusId?: string | null; zaloLabels?: Array<{ id?: number; name?: string; color?: string }> };
+};
+let friendUpdatedHandler: ((p: FriendUpdatedPayload) => void) | null = null;
 
 let searchTimeout: ReturnType<typeof setTimeout>;
 watch(searchQuery, () => {
@@ -897,18 +914,14 @@ watch(searchQuery, () => {
   display: block;
 }
 
-/* Draggable dividers */
+/* Draggable dividers — disabled for fixed layout */
 .smax-divider {
   width: 5px;
   flex-shrink: 0;
-  cursor: col-resize;
-  background: rgba(var(--v-theme-primary), 0.15);
-  border-radius: 3px;
+  cursor: default;
+  background: transparent;
   align-self: stretch;
-  transition: background 0.15s;
 }
-.smax-divider:hover { background: rgba(var(--v-theme-primary), 0.45); }
-.smax-divider:active { background: rgba(var(--v-theme-primary), 0.7); }
 
 /* Responsive breakpoints */
 @media (max-width: 1700px) {

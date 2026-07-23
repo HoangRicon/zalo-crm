@@ -624,6 +624,16 @@ export function useChat() {
     }
   }
 
+  async function chatWithAi(userMessage: string): Promise<string> {
+    if (!selectedConvId.value) throw new Error('No conversation selected');
+    const res = await api.post<{ content: string }>('/ai/chat', {
+      conversationId: selectedConvId.value,
+      userMessage,
+    });
+    await fetchAiUsage();
+    return res.data.content || '';
+  }
+
   async function generateAiSummary() {
     if (!selectedConvId.value) return;
     aiSummaryLoading.value = true;
@@ -1169,6 +1179,28 @@ export function useChat() {
     window.removeEventListener('friend-crm-tags-changed', onFriendCrmTagsChanged);
     document.removeEventListener('visibilitychange', onVisible);
     window.removeEventListener('online', onOnline);
+    // FIX 2026-07-24: unregister ALL socket handlers to prevent accumulate across ChatView mounts
+    if (socket) {
+      socket.off('chat:message');
+      socket.off('chat:deleted');
+      socket.off('chat:message-edited');
+      socket.off('chat:reactions');
+      socket.off('chat:pinned');
+      socket.off('chat:unpinned');
+      socket.off('chat:group-info-updated');
+      socket.off('zalo:access-changed');
+      socket.off('zalo:typing');
+      socket.off('zalo:message-status');
+      socket.off('friend:updated');
+      socket.off('connect');
+      socket.off('disconnect');
+      socket.off('reconnect');
+    }
+    // FIX 2026-07-24: clear pending timers to prevent leaks
+    for (const t of typingTimers.values()) window.clearTimeout(t);
+    typingTimers.clear();
+    if (offlineGraceTimer) { clearTimeout(offlineGraceTimer); offlineGraceTimer = null; }
+    if (convSyncTimer) { clearTimeout(convSyncTimer); convSyncTimer = null; }
     socket?.disconnect();
     socket = null;
   }
@@ -1205,6 +1237,7 @@ export function useChat() {
     generateAiSuggestion,
     generateAiSummary,
     generateAiSentiment,
+    chatWithAi,
     clearAiState,
     initSocket,
     destroySocket,

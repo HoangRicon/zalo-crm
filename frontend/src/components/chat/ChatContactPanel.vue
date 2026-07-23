@@ -490,38 +490,44 @@
       </div>
     </div>
 
-    <!-- ════════ TAB AI (Trợ lý chat) ════════ -->
+    <!-- ════════ TAB AI (Trợ lý AI) ════════ -->
     <div v-if="mainTab === 'ai'" class="main-tab-body ai-tab-body">
       <div class="ai-tab-header">
         <div class="ai-tab-title">✨ Trợ lý AI</div>
-        <div class="ai-tab-sub">Hỏi đáp về sản phẩm, gợi ý chăm sóc KH</div>
+        <div class="ai-tab-sub">Hỗ trợ chăm sóc khách hàng</div>
       </div>
 
-      <!-- Quick actions -->
+      <!-- Tác vụ nhanh -->
+      <div class="ai-section-divider">
+        <span>Tác vụ nhanh</span>
+      </div>
       <div class="ai-quick-actions">
         <button
           class="ai-qa-btn"
           :disabled="aiSuggestionLoading"
           @click="$emit('ask-ai')"
         >
-          <span>💬</span>
-          <span>{{ aiSuggestionLoading ? 'Đang gợi ý…' : 'Gợi ý trả lời' }}</span>
+          <span class="qa-icon">💬</span>
+          <span class="qa-label">Gợi ý trả lời</span>
+          <span class="qa-desc">Dựa trên cuộc trò chuyện</span>
         </button>
         <button
           class="ai-qa-btn"
           :disabled="aiSummaryLoading"
           @click="$emit('refresh-ai-summary')"
         >
-          <span>📝</span>
-          <span>{{ aiSummaryLoading ? 'Đang tóm tắt…' : 'Tóm tắt cuộc trò chuyện' }}</span>
+          <span class="qa-icon">📝</span>
+          <span class="qa-label">Tóm tắt</span>
+          <span class="qa-desc">Tóm tắt cuộc trò chuyện</span>
         </button>
         <button
           class="ai-qa-btn"
           :disabled="aiSentimentLoading"
           @click="$emit('refresh-ai-sentiment')"
         >
-          <span>💗</span>
-          <span>{{ aiSentimentLoading ? 'Đang phân tích…' : 'Cảm xúc KH' }}</span>
+          <span class="qa-icon">💗</span>
+          <span class="qa-label">Cảm xúc KH</span>
+          <span class="qa-desc">Phân tích cảm xúc</span>
         </button>
       </div>
 
@@ -566,6 +572,13 @@
         <div class="ai-empty-icon">🤖</div>
         <p>Bấm <b>Gợi ý trả lời</b> để AI phân tích cuộc trò chuyện và gợi ý câu trả lời phù hợp.</p>
         <p class="ai-empty-sub">AI sử dụng ngữ cảnh cuộc trò chuyện để đưa ra gợi ý tự nhiên nhất.</p>
+      </div>
+
+      <!-- AI Settings link -->
+      <div class="ai-settings-link" @click="$router.push('/settings/crm/ai-assistant')">
+        <v-icon size="16">mdi-cog-outline</v-icon>
+        <span>Cài đặt AI</span>
+        <v-icon size="14">mdi-chevron-right</v-icon>
       </div>
     </div>
 
@@ -711,7 +724,7 @@ const emit = defineEmits<{
   'status-changed': [statusId: string | null];
 }>();
 
-// orgId cho ContactDealStageSelector (trạng thái cột 4 cạnh UID — sync với cột 3).
+// ── orgId cho ContactDealStageSelector (trạng thái cột 4 cạnh UID — sync với cột 3).
 const _authStorePanel = useAuthStore();
 const orgId = computed(() => _authStorePanel.user?.orgId ?? null);
 
@@ -843,10 +856,16 @@ watch(activeTab, (tab) => {
 // pendingAptBump giữ count cho tới khi reloadAppointments() refresh data thực từ backend.
 const pendingAptBump = ref(0);
 const badgeBump = ref(false);
+// FIX 2026-07-24: track timer to clear on unmount + on rapid re-fire (was leaking).
+let badgeBumpTimer: ReturnType<typeof setTimeout> | null = null;
 function onAppointmentCreated() {
   pendingAptBump.value++;
   badgeBump.value = true;
-  setTimeout(() => { badgeBump.value = false; }, 600);
+  if (badgeBumpTimer) clearTimeout(badgeBumpTimer);
+  badgeBumpTimer = setTimeout(() => {
+    badgeBump.value = false;
+    badgeBumpTimer = null;
+  }, 600);
   // Reset bump NGAY trong .then() (không setTimeout 300ms) để Vue batch cùng frame
   //   activityBadgeCount: 0 → 1  (do reload)
   //   pendingAptBump:     1 → 0  (do reset)
@@ -863,6 +882,8 @@ function onGlobalAppointmentCreated() { onAppointmentCreated(); }
 onMounted(() => window.addEventListener('appointment-created', onGlobalAppointmentCreated));
 onBeforeUnmount(() => {
   clearCollapseTimer();
+  // FIX 2026-07-24: clear pending bump timer
+  if (badgeBumpTimer) { clearTimeout(badgeBumpTimer); badgeBumpTimer = null; }
   window.removeEventListener('appointment-created', onGlobalAppointmentCreated);
 });
 
@@ -2339,6 +2360,26 @@ async function onRegenerateHandoff() {
 .ai-tab-header { padding: 0 16px 10px; }
 .ai-tab-title { font-size: 15px; font-weight: 700; color: var(--smax-primary, #0e445a); }
 .ai-tab-sub { font-size: 12px; color: var(--smax-grey-600); margin-top: 2px; }
+
+/* Divider */
+.ai-section-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 16px 8px;
+  font-size: 11px;
+  color: #aaa;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.ai-section-divider::before,
+.ai-section-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e0e0e0;
+}
 
 .ai-quick-actions {
   display: flex; flex-direction: column; gap: 8px;

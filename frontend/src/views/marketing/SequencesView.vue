@@ -45,10 +45,12 @@
         </div>
 
         <h3 class="sv-section">Các bước</h3>
-        <div v-for="(step, idx) in form.steps" :key="idx" class="sv-step">
+        <!-- FIX 2026-07-24: use stable _uid instead of idx so Vue destroys + recreates DOM
+             on mid-list delete (was reusing input values → wrong content displayed). -->
+        <div v-for="(step, idx) in form.steps" :key="step._uid" class="sv-step">
           <div class="sv-step-header">
             <span class="sv-step-num">Step {{ idx + 1 }}</span>
-            <button class="btn-danger-small" @click="form.steps.splice(idx, 1)">Xóa</button>
+            <button class="btn-danger-small" @click="removeStep(step._uid)">Xóa</button>
           </div>
           <div class="sv-step-row">
             <div class="sv-field">
@@ -91,13 +93,21 @@ const form = ref<{
   name: string;
   description: string;
   status: 'active' | 'paused';
-  steps: SequenceStep[];
+  // FIX 2026-07-24: each step has a stable client-side _uid so :key survives reorder/delete
+  steps: (SequenceStep & { _uid: string })[];
 }>({
   name: '',
   description: '',
   status: 'paused',
   steps: [],
 });
+
+// FIX 2026-07-24: monotonic id generator (avoid crypto.randomUUID for perf in hot loops).
+let _seqStepCounter = 0;
+function nextStepUid(): string {
+  _seqStepCounter += 1;
+  return `step_${Date.now().toString(36)}_${_seqStepCounter}`;
+}
 
 async function load() {
   loading.value = true;
@@ -118,7 +128,7 @@ function select(s: Sequence) {
     name: s.name,
     description: s.description || '',
     status: s.status,
-    steps: JSON.parse(JSON.stringify(s.steps || [])),
+    steps: (s.steps || []).map((st) => ({ ...st, _uid: nextStepUid() })),
   };
 }
 
@@ -133,7 +143,13 @@ function addStep() {
     blockId: null,
     delayMinutes: 0,
     jitterMinutes: 0,
+    _uid: nextStepUid(),
   });
+}
+
+// FIX 2026-07-24: remove by _uid (stable) instead of splicing by idx (which Vue reuses wrong DOM).
+function removeStep(uid: string) {
+  form.value.steps = form.value.steps.filter((s) => s._uid !== uid);
 }
 
 async function save() {
@@ -143,10 +159,11 @@ async function save() {
   }
   saving.value = true;
   try {
+    // Strip client-side _uid before sending to backend
     const payload = {
       name: form.value.name,
       description: form.value.description,
-      steps: form.value.steps,
+      steps: form.value.steps.map(({ _uid, ...rest }) => rest),
       status: form.value.status,
     };
     if (form.value.id) {

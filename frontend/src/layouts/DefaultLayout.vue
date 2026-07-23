@@ -511,21 +511,19 @@ function logout() {
 
 :deep(.v-main) {
   height: 100%;
-  overflow: hidden;
   --v-layout-top: 48px !important;
 }
 :deep(.v-main__scroller) {
   height: 100%;
-  overflow: hidden;
 }
 .smax-main {
   background: var(--smax-grey-100);
   height: 100%;
-  overflow: hidden;
+  overflow: auto;
+  min-height: 0;
 }
 .smax-main :deep(.v-main__wrap) {
   height: 100%;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
 }

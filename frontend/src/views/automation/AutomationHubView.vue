@@ -23,7 +23,6 @@
 
     <div class="ah-body">
       <AutoReplyRulesTab v-if="activeTab === 'auto-reply'" />
-      <SequencesTab v-else-if="activeTab === 'sequences'" />
       <TriggersTab v-else-if="activeTab === 'triggers'" />
       <ReportsTab v-else-if="activeTab === 'reports'" />
     </div>
@@ -33,13 +32,11 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import AutoReplyRulesTab from '@/components/automation/AutoReplyRulesTab.vue';
-import SequencesTab from '@/components/automation/SequencesTab.vue';
 import TriggersTab from '@/components/automation/TriggersTab.vue';
 import ReportsTab from '@/components/automation/ReportsTab.vue';
 
 const tabs = [
   { key: 'auto-reply', label: 'Auto Reply', icon: '🤖' },
-  { key: 'sequences', label: 'Sequences', icon: '🔄' },
   { key: 'triggers', label: 'Triggers', icon: '⚡' },
   { key: 'reports', label: 'Reports', icon: '📊' },
 ];

@@ -865,9 +865,10 @@ watch(searchQuery, () => {
   display: flex;
   flex-direction: row;
   overflow: hidden;
-  height: calc(100vh - var(--smax-topnav-h, 48px));
+  height: 100%;
   background: var(--smax-grey-100);
   align-items: stretch;
+  flex-shrink: 0;
 }
 
 .smax-conv-col,

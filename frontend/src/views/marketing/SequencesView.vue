@@ -189,7 +189,7 @@ async function del() {
 }
 
 function goBack() {
-  router.push('/automation');
+  router.push('/marketing');
 }
 
 onMounted(load);

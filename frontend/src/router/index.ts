@@ -274,6 +274,21 @@ const routes: RouteRecordRaw[] = [
 export const router = createRouter({
   history: createWebHistory(),
   routes,
+  scrollBehavior(_to, _from, savedPosition) {
+    // Luôn scroll top khi chuyển trang — tránh scroll position cũ gây blank render
+    if (savedPosition) return savedPosition;
+    return { top: 0 };
+  },
+  // 2026-07-23 fix: trắng trang khi chuyển trang nhanh (chunk load thất bại hoặc
+  // WebSocket re-init race). onError chuyển hướng về trang gốc thay vì để blank.
+  async errorHandler(err, to) {
+    console.error('[router] navigation error:', err);
+    if (err.message?.includes('Loading chunk') || err.message?.includes('Failed to fetch dynamically imported module')) {
+      window.location.href = to?.fullPath ?? '/';
+    } else if (err.message?.includes('Unexpected token') || err.message?.includes('SyntaxError')) {
+      window.location.reload();
+    }
+  },
 });
 
 // Legacy /settings?tab=X → /settings/<group>/<sub> redirect map

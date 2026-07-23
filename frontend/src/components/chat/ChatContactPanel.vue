@@ -490,13 +490,82 @@
       </div>
     </div>
 
-    <!-- ════════ TAB AI (placeholder) ════════ -->
+    <!-- ════════ TAB AI (Trợ lý chat) ════════ -->
     <div v-if="mainTab === 'ai'" class="main-tab-body">
-      <div class="main-tab-placeholder">
-        <div class="mtp-icon">✨</div>
-        <h3>Trợ lý AI Bất động sản</h3>
-        <p>Hỏi đáp về sản phẩm, dự án BĐS, giá, ưu đãi để tư vấn KH.</p>
-        <div class="mtp-coming">🚧 Đang phát triển — kết nối knowledge base BĐS HS Holding</div>
+      <div class="ai-tab-header">
+        <div class="ai-tab-title">✨ Trợ lý AI</div>
+        <div class="ai-tab-sub">Hỏi đáp về sản phẩm, gợi ý chăm sóc KH</div>
+      </div>
+
+      <!-- Quick actions -->
+      <div class="ai-quick-actions">
+        <button
+          class="ai-qa-btn"
+          :disabled="aiSuggestionLoading"
+          @click="$emit('ask-ai')"
+        >
+          <span>💬</span>
+          <span>{{ aiSuggestionLoading ? 'Đang gợi ý…' : 'Gợi ý trả lời' }}</span>
+        </button>
+        <button
+          class="ai-qa-btn"
+          :disabled="aiSummaryLoading"
+          @click="$emit('refresh-ai-summary')"
+        >
+          <span>📝</span>
+          <span>{{ aiSummaryLoading ? 'Đang tóm tắt…' : 'Tóm tắt cuộc trò chuyện' }}</span>
+        </button>
+        <button
+          class="ai-qa-btn"
+          :disabled="aiSentimentLoading"
+          @click="$emit('refresh-ai-sentiment')"
+        >
+          <span>💗</span>
+          <span>{{ aiSentimentLoading ? 'Đang phân tích…' : 'Cảm xúc KH' }}</span>
+        </button>
+      </div>
+
+      <!-- AI Suggestion output -->
+      <div v-if="aiSuggestion || aiSuggestionLoading" class="ai-output-card">
+        <div class="ai-output-label">💬 Gợi ý trả lời</div>
+        <div v-if="aiSuggestionLoading" class="ai-output-loading">
+          <v-progress-circular indeterminate size="20" width="2" />
+          <span>Đang sinh gợi ý…</span>
+        </div>
+        <div v-else-if="aiSuggestion" class="ai-output-text">{{ aiSuggestion }}</div>
+        <div v-if="aiSuggestion" class="ai-output-hint">Click để chèn vào ô soạn tin → Enter gửi</div>
+      </div>
+
+      <!-- AI Summary output -->
+      <div v-if="aiSummary || aiSummaryLoading" class="ai-output-card ai-card--blue">
+        <div class="ai-output-label">📝 Tóm tắt cuộc trò chuyện</div>
+        <div v-if="aiSummaryLoading" class="ai-output-loading">
+          <v-progress-circular indeterminate size="20" width="2" />
+          <span>Đang tóm tắt…</span>
+        </div>
+        <div v-else-if="aiSummary" class="ai-output-text">{{ aiSummary }}</div>
+      </div>
+
+      <!-- AI Sentiment output -->
+      <div v-if="aiSentiment || aiSentimentLoading" class="ai-output-card ai-card--pink">
+        <div class="ai-output-label">💗 Cảm xúc khách hàng</div>
+        <div v-if="aiSentimentLoading" class="ai-output-loading">
+          <v-progress-circular indeterminate size="20" width="2" />
+          <span>Đang phân tích…</span>
+        </div>
+        <div v-else-if="aiSentiment" class="ai-sentiment-row">
+          <span class="ai-sentiment-badge" :class="'sent-' + aiSentiment.label">
+            {{ aiSentiment.label === 'positive' ? '✅ Tích cực' : aiSentiment.label === 'negative' ? '❌ Tiêu cực' : '⚖️ Trung lập' }}
+          </span>
+          <span v-if="aiSentiment.reason" class="ai-sentiment-reason">{{ aiSentiment.reason }}</span>
+        </div>
+      </div>
+
+      <!-- Empty state -->
+      <div v-if="!aiSuggestion && !aiSuggestionLoading && !aiSummary && !aiSummaryLoading && !aiSentiment && !aiSentimentLoading" class="ai-empty-state">
+        <div class="ai-empty-icon">🤖</div>
+        <p>Bấm <b>Gợi ý trả lời</b> để AI phân tích cuộc trò chuyện và gợi ý câu trả lời phù hợp.</p>
+        <p class="ai-empty-sub">AI sử dụng ngữ cảnh cuộc trò chuyện để đưa ra gợi ý tự nhiên nhất.</p>
       </div>
     </div>
 
@@ -628,11 +697,14 @@ const props = defineProps<{
   aiSummaryLoading: boolean;
   aiSentiment: AiSentiment | null;
   aiSentimentLoading: boolean;
+  aiSuggestion: string;
+  aiSuggestionLoading: boolean;
 }>();
 
 const emit = defineEmits<{
   close: [];
   saved: [];
+  'ask-ai': [];
   'refresh-ai-summary': [];
   'refresh-ai-sentiment': [];
   'insert-suggestion': [text: string];
@@ -2256,4 +2328,66 @@ async function onRegenerateHandoff() {
   font-weight: 600;
 }
 .mtp-link:hover { background: #0050cc; }
+
+/* ── AI Tab (2026-07-23) ──────────────────────────────────────── */
+.ai-tab-header { padding: 16px 16px 8px; }
+.ai-tab-title { font-size: 16px; font-weight: 700; color: var(--smax-primary, #0e445a); }
+.ai-tab-sub { font-size: 12px; color: var(--smax-grey-600); margin-top: 2px; }
+
+.ai-quick-actions {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 0 16px 12px;
+}
+.ai-qa-btn {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  background: var(--smax-bg);
+  border: 1.5px solid var(--smax-grey-200);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13.5px;
+  color: var(--smax-text);
+  text-align: left;
+  transition: all 0.15s;
+}
+.ai-qa-btn:hover:not(:disabled) {
+  border-color: #9c27b0;
+  background: rgba(156,39,176,0.05);
+}
+.ai-qa-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ai-qa-btn span:first-child { font-size: 16px; flex-shrink: 0; }
+
+.ai-output-card {
+  margin: 0 16px 12px;
+  background: #f3e5f5;
+  border: 1px solid #ce93d8;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.ai-card--blue { background: #e3f2fd; border-color: #90caf9; }
+.ai-card--pink { background: #fce4ec; border-color: #f48fb1; }
+.ai-output-label {
+  font-size: 11px; font-weight: 700; color: #7b1fa2;
+  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;
+}
+.ai-card--blue .ai-output-label { color: #1565c0; }
+.ai-card--pink .ai-output-label { color: #c62828; }
+.ai-output-loading { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #555; }
+.ai-output-text { font-size: 13.5px; color: #333; line-height: 1.6; white-space: pre-wrap; }
+.ai-output-hint { font-size: 11px; color: #9c27b0; margin-top: 6px; opacity: 0.8; }
+.ai-sentiment-row { display: flex; flex-direction: column; gap: 6px; }
+.ai-sentiment-badge {
+  display: inline-flex; padding: 3px 10px; border-radius: 9999px; font-size: 13px; font-weight: 600;
+}
+.sent-positive { background: #e8f5e9; color: #2e7d32; }
+.sent-negative { background: #ffebee; color: #c62828; }
+.sent-neutral  { background: #f5f5f5; color: #616161; }
+.ai-sentiment-reason { font-size: 13px; color: #555; line-height: 1.5; }
+
+.ai-empty-state {
+  padding: 32px 24px; text-align: center; color: var(--smax-grey-600);
+}
+.ai-empty-icon { font-size: 40px; margin-bottom: 12px; }
+.ai-empty-state p { font-size: 13.5px; line-height: 1.6; margin-bottom: 8px; }
+.ai-empty-sub { font-size: 12px; color: var(--smax-grey-500); }
 </style>

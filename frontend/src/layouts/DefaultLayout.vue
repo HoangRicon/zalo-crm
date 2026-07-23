@@ -49,7 +49,7 @@
             <v-list-item to="/reports/audit"       title="Audit & Sức khỏe HT"   prepend-icon="mdi-shield-check-outline" />
             <!-- Broadcast tự động (🟢 Community extension 2026-07-06) -->
             <v-list-item to="/reports/broadcast"   title="Broadcast tự động"     prepend-icon="mdi-bullhorn-outline" />
-            <!-- 2026-07-22 fix-zalo-crm-mvp-gaps#2: Automation Hub (cả CE + EE) -->
+            <!-- 2026-07-22 fix-zalo-crm-mvp-gaps#2: Automation Hub (cả CE + EE) — trong Reports -->
             <v-list-item to="/automation"           title="Tự động hóa"           prepend-icon="mdi-robot-outline" />
             <v-divider />
             <v-list-item to="/analytics" title="Phân tích nâng cao" prepend-icon="mdi-chart-line" />

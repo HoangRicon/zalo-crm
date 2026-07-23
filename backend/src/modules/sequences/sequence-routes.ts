@@ -31,7 +31,7 @@ export async function sequenceRoutes(app: FastifyInstance) {
 
   app.post(
     '/api/v1/sequences',
-    { preHandler: requireGrant('settings', 'edit') },
+    { preHandler: requireGrant('sequence', 'create') },
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         const body = request.body as { name?: string; description?: string; steps?: SequenceStepInput[] };
@@ -64,7 +64,7 @@ export async function sequenceRoutes(app: FastifyInstance) {
 
   app.put<{ Params: { id: string } }>(
     '/api/v1/sequences/:id',
-    { preHandler: requireGrant('settings', 'edit') },
+    { preHandler: requireGrant('sequence', 'edit') },
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       try {
         const body = request.body as { name?: string; description?: string; steps?: SequenceStepInput[]; status?: string };
@@ -78,7 +78,7 @@ export async function sequenceRoutes(app: FastifyInstance) {
 
   app.delete<{ Params: { id: string } }>(
     '/api/v1/sequences/:id',
-    { preHandler: requireGrant('settings', 'edit') },
+    { preHandler: requireGrant('sequence', 'delete') },
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       try {
         await deleteSequence(request.user!.orgId, request.params.id);
@@ -118,7 +118,7 @@ export async function sequenceRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { id: string } }>(
     '/api/v1/sequences/:id/enroll',
-    { preHandler: requireGrant('broadcast', 'create') },
+    { preHandler: requireGrant('sequence', 'edit') },
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       try {
         const body = request.body as { contactId?: string; oaAccountId?: string };

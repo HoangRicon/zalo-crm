@@ -48,8 +48,9 @@ const activeTab = ref('auto-reply');
 
 <style scoped>
 .ah-view {
-  max-width: 1280px;
-  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   padding: 20px;
 }
 .ah-header {
@@ -94,6 +95,8 @@ const activeTab = ref('auto-reply');
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   padding: 20px;
-  min-height: 400px;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 </style>

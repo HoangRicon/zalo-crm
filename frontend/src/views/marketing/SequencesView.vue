@@ -196,8 +196,8 @@ onMounted(load);
 </script>
 
 <style scoped>
-.sv-view { max-width: 1280px; margin: 0 auto; padding: 20px; }
-.sv-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+.sv-view { display: flex; flex-direction: column; height: 100%; padding: 20px; }
+.sv-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; flex-shrink: 0; }
 .sv-title { font-size: 22px; font-weight: 700; margin: 0; }
 .sv-sub { color: #64748b; font-size: 13px; margin: 0; }
 .sv-actions { display: flex; gap: 8px; }

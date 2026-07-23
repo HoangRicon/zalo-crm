@@ -344,10 +344,14 @@ export async function getPooledLeads(
   return { leads: pooledLeads, total };
 }
 
-/** Request a lead from the pool (sale action) */
+/** Request a lead from the pool (sale action).
+ *  FIX 2026-07-24: accepts optional `leadId` so UI can claim a SPECIFIC lead row.
+ *  When provided, looks up the lead first; if not in pool → error 'lead_unavailable'.
+ *  When undefined → falls back to FIFO (next available). */
 export async function requestLead(
   orgId: string,
-  userId: string
+  userId: string,
+  leadId?: string
 ): Promise<{ success: boolean; error?: string; distribution?: LeadPoolDistributionRecord }> {
   const config = await getLeadPoolConfig(orgId);
 
@@ -365,13 +369,19 @@ export async function requestLead(
     return { success: false, error: 'quota_exceeded' };
   }
 
-  // Find next lead in pool (FIFO)
-  const { leads } = await getPooledLeads(orgId, { limit: 1 });
-  if (leads.length === 0) {
-    return { success: false, error: 'no_leads_in_pool' };
+  // Find lead (specific or next in pool via FIFO).
+  // SPECIFIC path: validate leadId belongs to orgId AND is actually in pool
+  // (assignedUserId IS NULL AND not in excluded statuses).
+  let lead: PooledLead | null | undefined;
+  if (leadId) {
+    lead = await getPooledLeadById(orgId, leadId);
+    if (!lead) return { success: false, error: 'lead_unavailable' };
+  } else {
+    const { leads } = await getPooledLeads(orgId, { limit: 1 });
+    if (leads.length === 0) return { success: false, error: 'no_leads_in_pool' };
+    lead = leads[0];
   }
-
-  const lead = leads[0];
+  if (!lead) return { success: false, error: 'no_leads_in_pool' };
   const now = getVnNow();
   const autoReturnMinutes = config.autoReturnAfterMinutes ?? 1440;
   const expiresAt = new Date(now.getTime() + autoReturnMinutes * 60 * 1000);
@@ -635,4 +645,55 @@ export async function addBonusQuota(
   });
 
   logger.info(`[lead-pool] bonus quota: +${bonusCount} to user=${userId} by=${grantedByUserId} org=${orgId}`);
+}
+
+/** Lookup a single pooled lead by id (must be in pool: assignedUserId null + not in excluded statuses).
+ *  FIX 2026-07-24: support SPECIFIC leadId claim from UI. Returns null if not in pool.
+ *  Reuses getLeadPoolConfig for excludedStatuses logic (matches getPooledLeads filter). */
+export async function getPooledLeadById(orgId: string, leadId: string): Promise<PooledLead | null> {
+  const config = await getLeadPoolConfig(orgId);
+  const now = getVnNow();
+  const autoReturnMinutes = config?.autoReturnAfterMinutes ?? 1440;
+
+  const lead = await prisma.contact.findFirst({
+    where: {
+      id: leadId,
+      orgId,
+      assignedUserId: null,
+      ...(config?.excludedStatuses?.length
+        ? { status: { notIn: config.excludedStatuses } }
+        : {}),
+      ...(config?.requirePhoneInPool ? { phone: { not: null } } : {}),
+    },
+    select: {
+      id: true,
+      fullName: true,
+      phone: true,
+      status: true,
+      source: true,
+      lastPooledAt: true,
+      pooledCount: true,
+      createdAt: true,
+    },
+  });
+
+  if (!lead) return null;
+
+  const pooledAtDate = lead.lastPooledAt ?? lead.createdAt ?? now;
+  const autoReturnAt = new Date(pooledAtDate.getTime() + autoReturnMinutes * 60 * 1000);
+  const daysInPool = Math.floor((now.getTime() - pooledAtDate.getTime()) / (1000 * 60 * 60 * 24));
+
+  return {
+    id: lead.id,
+    fullName: lead.fullName ?? '',
+    phone: lead.phone,
+    status: lead.status ?? 'new',
+    source: lead.source,
+    pooledAt: pooledAtDate,
+    pooledByUserId: '',
+    pooledByUser: undefined,
+    autoReturnAt,
+    pooledCount: lead.pooledCount ?? 0,
+    daysInPool,
+  };
 }

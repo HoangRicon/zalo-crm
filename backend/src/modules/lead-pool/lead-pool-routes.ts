@@ -159,10 +159,13 @@ export async function leadPoolRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ── POST /lead-pool/request ────────────────────────────────────────────
-  app.post('/api/v1/lead-pool/request', async (request, reply) => {
+  // FIX 2026-07-24: accepts optional `{ leadId }` in body so UI can claim a SPECIFIC
+  // lead row (was silently claiming the next FIFO lead → user click on row A got row B).
+  app.post<{ Body: { leadId?: string } }>('/api/v1/lead-pool/request', async (request, reply) => {
     const user = request.user!;
+    const leadId = request.body?.leadId;
 
-    const result = await requestLead(user.orgId, user.id);
+    const result = await requestLead(user.orgId, user.id, leadId);
 
     if (!result.success) {
       const statusCodes: Record<string, number> = {
@@ -170,6 +173,7 @@ export async function leadPoolRoutes(app: FastifyInstance): Promise<void> {
         in_cooldown: 429,
         quota_exceeded: 429,
         no_leads_in_pool: 404,
+        lead_unavailable: 404, // new — when specific leadId not in pool
       };
       const status = statusCodes[result.error!] ?? 400;
       return reply.status(status).send({ error: result.error });

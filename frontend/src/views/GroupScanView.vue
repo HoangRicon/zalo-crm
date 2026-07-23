@@ -207,7 +207,7 @@
       </v-card>
 
       <!-- ════════ STATE 3 / 4: ROSTER (completed / partial) ════════ -->
-      <v-card v-else-if="phase === 'roster'" variant="outlined" class="d-flex flex-column" style="overflow: hidden; height: 100%;">
+      <v-card v-else-if="phase === 'roster'" variant="outlined" class="d-flex flex-column gs-roster-card">
         <div class="d-flex align-center gap-3 pa-4 border-b flex-shrink-0">
           <div>
             <div class="text-subtitle-1 font-weight-bold">Thành viên đã quét</div>
@@ -282,7 +282,7 @@
             item-value="id"
             density="comfortable"
             fixed-header
-            height="calc(100vh - 340px)"
+            class="gs-roster-table"
           >
           <template #item.member="{ item }">
             <div class="d-flex align-center gap-3 py-1">
@@ -540,5 +540,21 @@ onBeforeUnmount(stopPolling);
 }
 @media (max-width: 760px) {
   .stat-grid { grid-template-columns: 1fr; }
+}
+
+/* Roster table: fills remaining viewport height */
+.gs-roster-card {
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+.gs-roster-table {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.gs-roster-table :deep(.v-table__wrapper) {
+  max-height: 100%;
+  overflow: auto;
 }
 </style>

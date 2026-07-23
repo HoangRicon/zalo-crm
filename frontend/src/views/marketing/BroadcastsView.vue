@@ -616,12 +616,13 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer); });
 </script>
 
 <style scoped>
-.bc-view { display: flex; flex-direction: column; height: 100%; overflow: auto; }
-.mkt-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 16px 20px 12px; border-bottom: 1px solid var(--border, #e5e4e7); }
+.bc-view { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.mkt-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 16px 20px 12px; border-bottom: 1px solid var(--border, #e5e4e7); flex-shrink: 0; }
 .mtt { font-size: 18px; font-weight: 700; }
 .mts { font-size: 13px; color: var(--text-secondary, #666); margin-top: 2px; max-width: 720px; }
 .actions { display: flex; gap: 8px; flex-shrink: 0; }
-.bc-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+.bc-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; overflow: auto; }
+.heatmap-container { flex-shrink: 0; max-height: 140px; }
 
 .bc-filter-row {
   display: flex;

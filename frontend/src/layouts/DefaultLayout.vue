@@ -509,10 +509,26 @@ function logout() {
 }
 .user-avatar :deep(.smax-av) { box-shadow: 0 0 0 2px rgba(255,255,255,.25); }
 
+:deep(.v-main) {
+  height: 100%;
+  overflow: hidden;
+  --v-layout-top: 48px !important;
+}
+:deep(.v-main__scroller) {
+  height: 100%;
+  overflow: hidden;
+}
 .smax-main {
   background: var(--smax-grey-100);
+  height: 100%;
+  overflow: hidden;
 }
-.smax-main :deep(.v-main__wrap) { min-height: calc(100vh - var(--smax-topnav-h)); }
+.smax-main :deep(.v-main__wrap) {
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
 
 /* Vuetify menus rendered from v-menu inherit theme automatically.
    Force light surface in case parent has legacy-dark applied. */

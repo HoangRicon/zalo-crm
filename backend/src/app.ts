@@ -90,6 +90,7 @@ import { initTelegramBridge } from './modules/integrations/providers/telegram-br
 // Telegram bridge routes (Zalo↔Telegram /link + provisioner) — core, stays outside _ee.
 import { telegramBridgeRoutes } from './modules/integrations/providers/telegram-bridge/telegram-bridge-routes.js';
 import { aiRoutes } from './modules/ai/ai-routes.js';
+import { knowledgeRoutes } from './modules/knowledge/knowledge-routes.js';
 import { chatOperationsRoutes, registerChatSocketHandlers } from './modules/chat/chat-operations-routes.js';
 import { groupRoutes } from './modules/zalo/group-routes.js';
 import { groupScanRoutes } from './modules/zalo/group-scan-routes.js';
@@ -326,6 +327,7 @@ async function bootstrap() {
   // lists/friend-invite + bull-board/stats/manual-control) → extension bundle.
   await app.register(telegramBridgeRoutes); // Telegram bridge (Zalo↔Telegram) — core
   await app.register(aiRoutes);
+  await app.register(knowledgeRoutes);
   await app.register(chatOperationsRoutes);
   await app.register(groupRoutes);
   await app.register(groupScanRoutes); // E1 Quét group (🟢 Community)

@@ -597,6 +597,10 @@
           <button class="icon-tool ai-btn" title="AI compose" :disabled="aiSuggestionLoading" @click="$emit('ask-ai')">
             <SparklesIcon :size="18" :stroke-width="1.5" />
           </button>
+          <!-- 2026-07-24: Hỏi kho tri thức (RAG) -->
+          <button class="icon-tool kb-btn" title="Hỏi kho tri thức" @click="$emit('open-kb-qa')">
+            <BookSearchIcon :size="18" :stroke-width="1.5" />
+          </button>
         </div>
 
         <div class="input-row">
@@ -966,6 +970,7 @@ import {
   Zap as ZapIcon,
   Sparkles as SparklesIcon,
   Package as PackageIcon,
+  BookSearch as BookSearchIcon,
   // Header action + chrome icons (anh chốt 2026-06-08 — bỏ emoji thô, đồng bộ Lucide)
   UserPlus as UserPlusIcon,
   UserCheck as UserCheckIcon,
@@ -1083,6 +1088,10 @@ const emit = defineEmits<{
   // Fix 2026-06-16: dialog xem info Zalo trả avatar/tên mới từ SDK → báo ChatView patch
   // conversation state (header + list cập nhật ngay, không chờ F5).
   'profile-synced': [payload: { uid: string; avatarUrl: string | null; displayName: string | null; gender: number | null }];
+  // 2026-07-24: mở panel hỏi đáp kho tri thức
+  'open-kb-qa': [];
+  // 2026-07-24: chèn text vào composer
+  'insert-text': [text: string];
 }>();
 
 const toast = useToast();

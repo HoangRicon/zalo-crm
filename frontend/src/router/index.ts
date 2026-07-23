@@ -163,6 +163,8 @@ const routes: RouteRecordRaw[] = [
       { path: 'crm/lead-pool', name: 'Settings.LeadPool', component: () => import('@/views/settings/LeadPoolSettingsPage.vue'), meta: { resource: 'settings' } },
       // M53 2026-05-30 — Trợ Lý AI Virtual Chat
       { path: 'crm/ai-assistant',      name: 'Settings.AiAssistant',     component: () => import('@/views/settings/AiAssistantPage.vue'), meta: { resource: 'settings' } },
+      // 2026-07-24 — Kho tri thức (RAG-lite) cho AI Assistant
+      { path: 'crm/knowledge-base',    name: 'Settings.KnowledgeBase',   component: () => import('@/views/settings/KnowledgeBasePage.vue'), meta: { resource: 'settings' } },
       // 🔌 Channels & Integrations
       { path: 'channels/zalo',             name: 'Settings.ZaloAccounts',    component: () => import('@/views/ZaloAccountsView.vue'), meta: { resource: 'zalo_account' } },
       // 2026-06-18 — Trần SDK dời sang Cài đặt (gate 'settings', KHÔNG 'zalo_account') → sale ko đổi được.
@@ -422,6 +424,7 @@ const ROUTE_TITLES: Record<string, string> = {
   'Settings.Templates': 'Mẫu tin nhắn',
   'Settings.LeadPool': 'Lead Pool',
   'Settings.AiAssistant': 'Trợ lý AI',
+  'Settings.KnowledgeBase': 'Kho tri thức',
   'Settings.ZaloAccounts': 'Tài khoản Zalo',
   'Settings.FacebookLeadAds': 'Facebook Lead Ads',
   'Settings.ZaloAdsLeadForm': 'Zalo Ads Lead Form',

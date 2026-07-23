@@ -5,6 +5,7 @@
   <div v-else class="smax-chat-grid">
     <!-- COL 1: NEW Filter Sidebar (Phase 6+ Inbox Triage) -->
     <ConversationFilterSidebar
+      :style="{ width: widths.sidebar + 'px', flexBasis: widths.sidebar + 'px' }"
       :filters="inboxFilters"
       :workspace-name="workspaceName"
       :current-user-name="currentUserName"
@@ -18,12 +19,23 @@
       @clear-account-filter="onFilterAccount(null)"
     />
 
-    <!-- draggable: sidebar ↔ conv list -->
-    <div class="smax-divider" @mousedown="startDrag($event, 'sidebar')"></div>
+    <!-- draggable: sidebar ↔ conv list (2026-07-24 enable lại) -->
+    <div
+      class="smax-divider"
+      role="separator"
+      aria-orientation="vertical"
+      :aria-valuenow="widths.sidebar"
+      :aria-valuemin="MIN_WIDTHS.sidebar"
+      :aria-valuemax="MAX_WIDTHS.sidebar"
+      :aria-label="`Kéo để thay đổi độ rộng cột filter (${widths.sidebar}px). Double-click để reset.`"
+      tabindex="0"
+      @pointerdown="startDrag($event, 'sidebar')"
+      @dblclick="resetColumn('sidebar')"
+    ></div>
 
     <!-- COL 2: conversation list — FilterBar render INSIDE via named slot
          giữa CRM tag bar và conv list (đúng order user yêu cầu) -->
-    <div class="smax-conv-col">
+    <div class="smax-conv-col" :style="{ width: widths.conv + 'px', flexBasis: widths.conv + 'px' }">
       <!-- FIX socket-chết v2 — báo mất kết nối realtime, KHÔNG để chết âm thầm (bỏ lỡ khách).
            Text generic, không lộ orgId/user. Ẩn khi đã kết nối. -->
       <div v-if="realtimeOffline" class="realtime-offline-banner">
@@ -89,8 +101,19 @@
       </ConversationList>
     </div>
 
-    <!-- draggable: conv list ↔ message thread -->
-    <div class="smax-divider" @mousedown="startDrag($event, 'conv')"></div>
+    <!-- draggable: conv list ↔ message thread (2026-07-24 enable lại) -->
+    <div
+      class="smax-divider"
+      role="separator"
+      aria-orientation="vertical"
+      :aria-valuenow="widths.conv"
+      :aria-valuemin="MIN_WIDTHS.conv"
+      :aria-valuemax="MAX_WIDTHS.conv"
+      :aria-label="`Kéo để thay đổi độ rộng cột hội thoại (${widths.conv}px). Double-click để reset.`"
+      tabindex="0"
+      @pointerdown="startDrag($event, 'conv')"
+      @dblclick="resetColumn('conv')"
+    ></div>
 
     <!-- COL 3: message thread -->
     <MessageThread
@@ -124,10 +147,24 @@
       @refresh-thread="selectedConvId && fetchMessages(selectedConvId)"
       @switch-conversation="onSwitchToNickConv"
       @profile-synced="patchContactProfile"
+      @open-kb-qa="kbQaOpen = true"
+      @insert-text="onInsertKbAnswer"
     />
 
-    <!-- draggable: message thread ↔ contact panel -->
-    <div v-if="showContactPanel && selectedConv?.contact" class="smax-divider" @mousedown="startDrag($event, 'thread')"></div>
+    <!-- draggable: message thread ↔ contact panel (2026-07-24 enable lại) -->
+    <div
+      v-if="showContactPanel && selectedConv?.contact"
+      class="smax-divider"
+      role="separator"
+      aria-orientation="vertical"
+      :aria-valuenow="widths.info"
+      :aria-valuemin="MIN_WIDTHS.info"
+      :aria-valuemax="MAX_WIDTHS.info"
+      :aria-label="`Kéo để thay đổi độ rộng cột thông tin (${widths.info}px). Double-click để reset.`"
+      tabindex="0"
+      @pointerdown="startDrag($event, 'thread')"
+      @dblclick="resetColumn('thread')"
+    ></div>
 
     <!-- Folder management modal (overlay) -->
     <FolderManagePopup
@@ -158,6 +195,7 @@
       :ai-suggestion="aiSuggestion"
       :ai-suggestion-loading="aiSuggestionLoading"
       class="smax-info-col"
+      :style="{ width: widths.info + 'px', flexBasis: widths.info + 'px' }"
       @ask-ai="generateAiSuggestion"
       @refresh-ai-summary="generateAiSummary"
       @refresh-ai-sentiment="generateAiSentiment"
@@ -165,17 +203,21 @@
       @saved="fetchConversations()"
       @status-changed="onPanelStatusChanged"
     />
+
+    <!-- 2026-07-24: Knowledge Base Q&A panel -->
+    <KbQaPanel v-model="kbQaOpen" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api } from '@/api/index';
 import { useToast } from '@/composables/use-toast';
 import ConversationList from '@/components/chat/ConversationList.vue';
 import MessageThread from '@/components/chat/MessageThread.vue';
 import ChatContactPanel from '@/components/chat/ChatContactPanel.vue';
+import KbQaPanel from '@/components/chat/KbQaPanel.vue';
 import ConversationFilterSidebar from '@/components/chat/ConversationFilterSidebar.vue';
 import ConversationFilterBar from '@/components/chat/ConversationFilterBar.vue';
 import FolderManagePopup from '@/components/chat/FolderManagePopup.vue';
@@ -198,14 +240,151 @@ const router = useRouter();
 
 // ── Draggable panel dividers ──────────────────────────────────────────────────
 type DragTarget = 'sidebar' | 'conv' | 'thread';
-const dragState = ref<{ target: DragTarget; startX: number } | null>(null);
+const dragState = ref<{
+  target: DragTarget;
+  startX: number;
+  startSidebar: number;
+  startConv: number;
+  startInfo: number;
+} | null>(null);
 const chatGridEl = ref<HTMLElement | null>(null);
 
-function startDrag(e: MouseEvent, target: DragTarget) {
-  // Draggable disabled - fixed layout
+// 2026-07-24: persist column widths vào localStorage (key per-user → mỗi acc mỗi máy 1 layout).
+// Đặt default: sidebar=240 (filter), conv=320, info=350.
+const WIDTH_KEY_PREFIX = 'chat-col-widths.';
+type ColWidths = { sidebar: number; conv: number; info: number };
+const DEFAULT_WIDTHS: ColWidths = { sidebar: 240, conv: 320, info: 350 };
+const MIN_WIDTHS: ColWidths = { sidebar: 200, conv: 240, info: 280 };
+const MAX_WIDTHS: ColWidths = { sidebar: 380, conv: 480, info: 520 };
+
+function widthKey(userId: string | undefined): string {
+  return WIDTH_KEY_PREFIX + (userId || 'anon');
+}
+
+function loadWidths(userId: string | undefined): ColWidths {
+  try {
+    const raw = localStorage.getItem(widthKey(userId));
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<ColWidths>;
+      return {
+        sidebar: clampWidth('sidebar', parsed.sidebar ?? DEFAULT_WIDTHS.sidebar),
+        conv: clampWidth('conv', parsed.conv ?? DEFAULT_WIDTHS.conv),
+        info: clampWidth('info', parsed.info ?? DEFAULT_WIDTHS.info),
+      };
+    }
+  } catch { /* ignore */ }
+  return { ...DEFAULT_WIDTHS };
+}
+
+function clampWidth(target: DragTarget, v: number): number {
+  const key: keyof ColWidths = target === 'thread' ? 'info' : target;
+  return Math.max(MIN_WIDTHS[key], Math.min(MAX_WIDTHS[key], Math.round(v)));
+}
+
+function saveWidths(userId: string | undefined, widths: ColWidths) {
+  try { localStorage.setItem(widthKey(userId), JSON.stringify(widths)); }
+  catch { /* ignore */ }
+}
+
+// Reactive widths.
+const userIdRef = computed(() => (useAuthStore() as any)?.user?.id);
+const widths = ref<ColWidths>(loadWidths(undefined));
+onMounted(() => {
+  // Sau mount, user từ store đã có → reload.
+  const uid = (useAuthStore() as any)?.user?.id;
+  if (uid) widths.value = loadWidths(uid);
+});
+
+function setWidth(target: keyof ColWidths, value: number) {
+  widths.value = { ...widths.value, [target]: clampWidth(target, value) };
+  saveWidths(userIdRef.value, widths.value);
+}
+
+function startDrag(e: MouseEvent | PointerEvent, target: DragTarget) {
   e.preventDefault();
   e.stopPropagation();
+  // Pointer events cho cả mouse + touch thống nhất.
+  const ev = e as PointerEvent;
+  dragState.value = {
+    target,
+    startX: ev.clientX,
+    startSidebar: widths.value.sidebar,
+    startConv: widths.value.conv,
+    startInfo: widths.value.info,
+  };
+  // Capture pointer nếu browser hỗ trợ (fallback về global listeners).
+  const el = ev.currentTarget as HTMLElement | null;
+  try { el?.setPointerCapture?.(ev.pointerId); } catch { /* ignore */ }
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
 }
+
+function onDragMove(e: PointerEvent | MouseEvent) {
+  if (!dragState.value) return;
+  const dx = e.clientX - dragState.value.startX;
+  const s = dragState.value;
+  if (s.target === 'sidebar') {
+    setWidth('sidebar', s.startSidebar + dx);
+  } else if (s.target === 'conv') {
+    setWidth('conv', s.startConv + dx);
+  } else {
+    // thread → info (kéo phải = rộng info; kéo trái = hẹp info)
+    setWidth('info', s.startInfo + dx);
+  }
+}
+
+function onDragEnd() {
+  if (!dragState.value) return;
+  dragState.value = null;
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+}
+
+// Global pointer listeners (dùng khi pointer capture không khả dụng).
+if (typeof window !== 'undefined') {
+  window.addEventListener('pointermove', onDragMove);
+  window.addEventListener('pointerup', onDragEnd);
+  window.addEventListener('pointercancel', onDragEnd);
+}
+
+// ESC trong khi đang kéo → revert về giá trị start.
+function onKeyWhileDrag(e: KeyboardEvent) {
+  if (!dragState.value) return;
+  if (e.key === 'Escape') {
+    const s = dragState.value;
+    if (s.target === 'sidebar') setWidth('sidebar', s.startSidebar);
+    else if (s.target === 'conv') setWidth('conv', s.startConv);
+    else setWidth('info', s.startInfo);
+    onDragEnd();
+  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.preventDefault();
+    const dx = e.key === 'ArrowRight' ? 12 : -12;
+    const s = dragState.value;
+    if (s.target === 'sidebar') setWidth('sidebar', s.startSidebar + dx);
+    else if (s.target === 'conv') setWidth('conv', s.startConv + dx);
+    else setWidth('info', s.startInfo + dx);
+    // Cập nhật startX để tiếp tục từ vị trí mới.
+    dragState.value = { ...s, startX: s.startX + dx };
+  }
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('keydown', onKeyWhileDrag);
+}
+
+function resetColumn(target: DragTarget) {
+  const key: keyof ColWidths = target === 'thread' ? 'info' : target;
+  setWidth(key, DEFAULT_WIDTHS[key]);
+}
+
+onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('pointermove', onDragMove);
+    window.removeEventListener('pointerup', onDragEnd);
+    window.removeEventListener('pointercancel', onDragEnd);
+    window.removeEventListener('keydown', onKeyWhileDrag);
+  }
+  onDragEnd();
+});
 
 function onMouseMove(e: MouseEvent) {
   if (!dragState.value || !chatGridEl.value) return;
@@ -695,6 +874,16 @@ async function onSwitchToNickConv(convId: string) {
 
 // Auto-show panel khi chọn conv có contact
 const showContactPanel = ref(true);
+// 2026-07-24: Knowledge Base Q&A panel toggle
+const kbQaOpen = ref(false);
+const composerDraft = ref('');
+
+function onInsertKbAnswer(text: string) {
+  // Chèn text vào composer draft — MessageThread sẽ pick up qua prop/modelValue.
+  composerDraft.value = text;
+  // Trigger window event để MessageThread nghe (cách đơn giản nhất, tránh ref chain).
+  window.dispatchEvent(new CustomEvent('kb-insert-text', { detail: { text } }));
+}
 
 // 2026-06-12 (anh chốt): nút "Chèn từ kho" ở composer cột 3 → mở cột 4 sang tab Media.
 // Panel render bằng v-if nên nếu đang ẩn phải bật + chờ nextTick rồi mới gọi setMainTab.
@@ -892,65 +1081,70 @@ watch(searchQuery, () => {
 .smax-msg-col,
 .smax-info-col {
   flex-shrink: 0;
-  flex-basis: 380px;
   min-width: 0;
   height: 100%;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  /* flex-basis + width được set qua :style binding (JS quản lý drag).
+     Default fallback ở đây chỉ dùng khi JS chưa apply (SSR/initial render). */
+  flex-basis: 320px;
 }
-.smax-conv-col { flex-basis: 290px; }
-.smax-msg-col { flex: 1; flex-basis: 0; }
-.smax-info-col { flex-basis: 350px; }
+.smax-msg-col { flex: 1; flex-basis: 0; min-width: 320px; }
 
 /* Info panel visibility: hide when empty */
 .smax-chat-grid:not(:has(.smax-info-col)) .smax-info-col { display: none; }
 .smax-chat-grid:not(:has(.smax-info-col)) .smax-divider:last-of-type { display: none; }
-.smax-chat-grid:not(:has(.smax-info-col)) .smax-conv-col { flex-basis: 290px; }
+/* Khi không có info panel, msg col ăn full width còn lại. */
 .smax-chat-grid:not(:has(.smax-info-col)) .smax-msg-col { flex: 1; }
 
-/* Sidebar divider (between filter-sidebar and conv list) */
-.smax-chat-grid > :nth-child(2).smax-divider {
+/* Sidebar divider (between filter-sidebar and conv list) — luôn hiển thị khi có sidebar */
+.smax-chat-grid:has(.smax-filter-sidebar) > .smax-divider {
   display: block;
 }
 
-/* Draggable dividers — disabled for fixed layout */
+/* Draggable dividers — 2026-07-24 enable lại + polish UX */
 .smax-divider {
-  width: 5px;
+  width: 6px;
   flex-shrink: 0;
-  cursor: default;
+  cursor: col-resize;
   background: transparent;
   align-self: stretch;
+  position: relative;
+  outline: none;
+  /* Vùng hitbox rộng hơn vùng nhìn: dễ kích chuột */
+  margin-left: -3px;
+  margin-right: -3px;
+}
+.smax-divider::before {
+  /* Visual line — mỏng 1px ở giữa, hiện rõ khi hover/focus */
+  content: '';
+  position: absolute;
+  inset: 0;
+  left: 3px;
+  width: 1px;
+  background: transparent;
+  transition: background 0.15s;
+}
+.smax-divider:hover::before,
+.smax-divider:focus::before,
+.smax-divider:focus-visible::before {
+  background: var(--smax-primary, #5E6AD2);
+}
+.smax-divider:focus-visible {
+  /* a11y focus ring đậm hơn */
+  outline: 2px solid var(--smax-primary, #5E6AD2);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
-/* Responsive breakpoints */
-@media (max-width: 1700px) {
-  .smax-conv-col { flex-basis: 260px; }
-  .smax-msg-col { flex: 1; }
-  .smax-info-col { flex-basis: 310px; }
-}
-@media (max-width: 1440px) {
-  .smax-conv-col { flex-basis: 240px; }
-  .smax-msg-col { flex: 1; }
-  .smax-info-col { flex-basis: 280px; }
-}
-@media (max-width: 1366px) {
-  .smax-conv-col { flex-basis: 220px; }
-  .smax-msg-col { flex: 1; }
-  .smax-info-col { flex-basis: 288px; }
-}
-@media (max-width: 1280px) {
-  .smax-conv-col { flex-basis: 208px; }
-  .smax-msg-col { flex: 1; }
-  .smax-info-col { flex-basis: 280px; }
-}
+/* Responsive breakpoints — JS điều khiển width qua :style binding,
+   media query chỉ xử lý ẩn cột khi viewport quá hẹp (mobile/tablet). */
 @media (max-width: 1200px) {
-  .smax-conv-col { flex-basis: 0; flex-shrink: 1; min-width: 0; overflow: hidden; }
   .smax-chat-grid > :first-child { display: none; }
 }
 @media (max-width: 1024px) {
   .smax-conv-col { display: none; }
-  .smax-msg-col { flex: 1; }
   .smax-info-col { display: none; }
   .smax-divider { display: none; }
 }

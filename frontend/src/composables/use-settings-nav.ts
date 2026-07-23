@@ -136,6 +136,8 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     items: [
       { id: 'system-notifications', label: 'Thông báo hệ thống', icon: 'mdi-bell-cog-outline', route: '/settings/org/system-notifications', permission: 'admin', resource: 'settings', aliases: ['system notify', 'thông báo', 'zalo notify', 'uid', 'check live'] },
       { id: 'ai-assistant', label: 'Trợ lý AI', icon: 'mdi-robot-outline', route: '/settings/crm/ai-assistant', permission: 'admin', resource: 'settings', aliases: ['ai', 'tro ly', 'virtual chat', 'gemini', 'prompt'] },
+      // 2026-07-24 — Kho tri thức (RAG-lite) cho AI Assistant
+      { id: 'knowledge-base', label: 'Kho tri thức', icon: 'mdi-bookshelf', route: '/settings/crm/knowledge-base', permission: 'admin', resource: 'settings', aliases: ['knowledge', 'kho tri thức', 'kb', 'rag', 'tài liệu', 'document'] },
       { id: 'api', label: 'API & Webhook', icon: 'mdi-api', route: '/settings/dev/api', permission: 'owner', resource: 'webhook', aliases: ['webhook', 'api key', 'dev'] },
       { id: 'backup', label: 'Backup', icon: 'mdi-cloud-upload-outline', route: '/settings/dev/backup', permission: 'owner', resource: 'backup', aliases: ['backup', 'sao lưu', 'restore'] },
     ],

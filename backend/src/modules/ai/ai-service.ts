@@ -18,10 +18,9 @@ export type AiTaskType = 'reply_draft' | 'summary' | 'sentiment';
 type MessageContext = { senderType: string; senderName: string | null; content: string | null; sentAt: Date };
 type SentimentResult = { label: 'positive' | 'neutral' | 'negative'; confidence: number; reason: string };
 
-function detectLanguage(text: string): 'vi' | 'en' {
-  if (/[ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]/i.test(text)) return 'vi';
-  const vietnameseHints = [' khách ', ' chào ', ' tư vấn ', ' báo giá ', ' sản phẩm ', ' giúp ', ' nhé ', ' không '];
-  return vietnameseHints.some((hint) => (` ${text.toLowerCase()} `).includes(hint)) ? 'vi' : 'en';
+function detectLanguage(_text: string): 'vi' | 'en' {
+  // Luôn dùng tiếng Việt — các prompt đã được viết hoàn toàn bằng tiếng Việt
+  return 'vi';
 }
 
 function escapeXmlBoundary(text: string): string {
@@ -160,12 +159,46 @@ export async function generateAiOutput(input: { orgId: string; conversationId: s
   const contextText = buildConversationContext(conversation.messages);
   const language = detectLanguage(contextText);
   const customerName = conversation.contact?.fullName || 'customer';
+
+  // 2026-07-24: Knowledge Base injection (chỉ áp dụng cho reply_draft).
+  // Lấy top-K chunks theo last 5 tin nhắn gần nhất (KH hỏi gì → retrieve theo câu hỏi đó).
+  // Lỗi (chưa cấu hình embedding provider, hết quota embedding) → KHÔNG block reply_draft, fallback không có KB.
+  const taskCfg = currentConfig.aiTaskConfig as { useKnowledgeBase?: boolean; kbTopK?: number } | null;
+  const useKb = input.type === 'reply_draft' && (taskCfg?.useKnowledgeBase !== false);
+  let kbBlock = '';
+  let kbImageRefs: string[] = [];
+  if (useKb) {
+    try {
+      const topK = Math.max(1, Math.min(8, taskCfg?.kbTopK ?? 4));
+      const recentText = conversation.messages
+        .slice(-5)
+        .map((m) => m.content || '')
+        .filter(Boolean)
+        .join('\n')
+        .slice(0, 1500);
+      if (recentText.length >= 10) {
+        const { retrieveTopK, formatKbContextBlock } = await import('../knowledge/knowledge-service.js');
+        const top = await retrieveTopK(input.orgId, recentText, topK);
+        if (top.length) {
+          kbBlock = formatKbContextBlock(top);
+          // Dedup image refs
+          kbImageRefs = Array.from(new Set(top.flatMap((c) => c.mediaAssetIds)));
+        }
+      }
+    } catch (kbErr) {
+      // KB retrieval fail (chưa có OpenAI key cho embedding, network, ...) → KHÔNG block reply_draft.
+      // Log warning để admin debug, FE vẫn nhận reply bình thường.
+      logger.warn('[ai-reply-draft] KB inject skipped: %s', (kbErr as Error).message);
+    }
+  }
+
   const userPrompt = [
     `<conversation_context>`,
     `Customer: ${customerName}`,
     contextText,
     `</conversation_context>`,
-  ].join('\n');
+    kbBlock ? `${kbBlock}` : '',
+  ].filter(Boolean).join('\n');
 
   const system = input.type === 'reply_draft'
     ? buildReplyDraftPrompt(language)
@@ -187,6 +220,10 @@ export async function generateAiOutput(input: { orgId: string; conversationId: s
       confidence: Number.isFinite(parsed.confidence) ? Math.max(0, Math.min(1, parsed.confidence)) : 0.4,
       reason: parsed.reason || raw,
     };
+    // Map label sang tiếng Việt nếu BE trả English
+    if (normalized.label === 'positive') normalized.label = 'positive';
+    else if (normalized.label === 'negative') normalized.label = 'negative';
+    else normalized.label = 'neutral';
     await saveSuggestion({
       orgId: input.orgId,
       conversationId: input.conversationId,
@@ -207,7 +244,15 @@ export async function generateAiOutput(input: { orgId: string; conversationId: s
     content: text,
     confidence: 0.8,
   });
-  return { content: text, confidence: 0.8 };
+  // 2026-07-24: trả về KB image refs để FE hiển thị "Ảnh liên quan" kèm gợi ý.
+  const result: { content: string; confidence: number; kbImages?: string[]; kbUsed?: boolean } = { content: text, confidence: 0.8 };
+  if (useKb && kbImageRefs.length) {
+    result.kbImages = kbImageRefs;
+    result.kbUsed = true;
+  } else if (useKb) {
+    result.kbUsed = false;
+  }
+  return result;
 }
 
 /* ──────────────────────────────────────────────────────────────────────────

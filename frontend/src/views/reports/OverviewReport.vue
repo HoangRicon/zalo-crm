@@ -188,12 +188,12 @@ function quotaW(v: any): string {
     <template v-else>
       <!-- KPI ROW 1 -->
       <div class="grid g-4" style="margin-bottom:14px">
-        <div class="kpi">
+        <div class="kpi" title="Tổng số contact (kể cả đã xóa mềm) trong org">
           <div class="top"><span class="label">Tổng khách hàng</span><span class="kic"><v-icon icon="mdi-account-multiple-outline" size="18" /></span></div>
           <div class="val">{{ n(kpis.totalContacts) }}</div>
           <div class="delta up"><v-icon icon="mdi-trending-up" size="13" /> +{{ n(kpis.newContacts) }} trong kỳ</div>
         </div>
-        <div class="kpi">
+        <div class="kpi" title="Contact tạo mới trong khoảng thời gian đang chọn (today/7d/30d)">
           <div class="top"><span class="label">KH mới</span><span class="kic"><v-icon icon="mdi-account-plus-outline" size="18" /></span></div>
           <div class="val">{{ n(kpis.newContacts) }}</div>
           <div class="delta" :class="(Number(kpis.newContactsDelta) || 0) >= 0 ? 'up' : 'down'">
@@ -201,12 +201,12 @@ function quotaW(v: any): string {
             {{ (Number(kpis.newContactsDelta) || 0) >= 0 ? '+' : '' }}{{ n(kpis.newContactsDelta) }} vs kỳ trước
           </div>
         </div>
-        <div class="kpi accent-ok">
+        <div class="kpi accent-ok" title="Nick Zalo đang kết nối / tổng số nick của org">
           <div class="top"><span class="label">Nick online</span><span class="kic"><v-icon icon="mdi-cellphone-check" size="18" /></span></div>
           <div class="val">{{ n(kpis.nicksOnline) }}<span class="u">/ {{ n(kpis.nicksTotal) }}</span></div>
           <div class="delta flat"><v-icon icon="mdi-circle-medium" size="13" /> {{ n(kpis.nicksNeedRelogin) }} cần re-login</div>
         </div>
-        <div class="kpi">
+        <div class="kpi" title="Tổng tin nhắn gửi + nhận trong ngày hôm nay (UTC+7)">
           <div class="top"><span class="label">Tin nhắn hôm nay</span><span class="kic"><v-icon icon="mdi-message-text-outline" size="18" /></span></div>
           <div class="val">{{ n(kpis.msgToday) }}</div>
           <div class="delta up"><v-icon icon="mdi-robot-outline" size="13" /> {{ n(kpis.msgByBot) }} do bot gửi</div>
@@ -215,17 +215,17 @@ function quotaW(v: any): string {
 
       <!-- KPI ROW 2 -->
       <div class="grid g-4" style="margin-bottom:18px">
-        <div class="kpi">
+        <div class="kpi" title="Cuộc hẹn (appointment) có due date = hôm nay">
           <div class="top"><span class="label">Lịch hẹn hôm nay</span><span class="kic"><v-icon icon="mdi-calendar-clock" size="18" /></span></div>
           <div class="val">{{ n(kpis.apptToday) }}</div>
           <div class="delta flat"><v-icon icon="mdi-check" size="13" /> {{ n(kpis.apptDone) }} đã hoàn thành</div>
         </div>
-        <div class="kpi accent-warn">
+        <div class="kpi accent-warn" title="Lead đang nằm pool chờ sale nhận (assignedUserId IS NULL)">
           <div class="top"><span class="label">Lead pool đang chờ</span><span class="kic"><v-icon icon="mdi-gift-outline" size="18" /></span></div>
           <div class="val">{{ n(kpis.leadPoolWaiting) }}</div>
           <div class="delta down"><v-icon icon="mdi-trending-down" size="13" /> {{ n(kpis.leadPoolAutoReturnSoon) }} sắp auto-trả</div>
         </div>
-        <div class="kpi accent-ok">
+        <div class="kpi accent-ok" title="Tỉ lệ deal chốt thành công / tổng deal kết thúc trong kỳ (%)">
           <div class="top"><span class="label">Tỉ lệ chốt</span><span class="kic"><v-icon icon="mdi-flag-checkered" size="18" /></span></div>
           <div class="val">{{ pct(kpis.closeRate) }}<span class="u">%</span></div>
           <div class="delta" :class="(Number(kpis.closeRateDelta) || 0) >= 0 ? 'up' : 'down'">
@@ -233,7 +233,7 @@ function quotaW(v: any): string {
             {{ (Number(kpis.closeRateDelta) || 0) >= 0 ? '+' : '' }}{{ pct(kpis.closeRateDelta) }}đ
           </div>
         </div>
-        <div class="kpi">
+        <div class="kpi" title="Lời mời kết bạn KH chấp nhận / tổng lời mời đã gửi (%)">
           <div class="top"><span class="label">Kết bạn thành công</span><span class="kic"><v-icon icon="mdi-account-check-outline" size="18" /></span></div>
           <div class="val">{{ pct(kpis.friendAcceptRate) }}<span class="u">%</span></div>
           <div class="delta flat"><v-icon icon="mdi-circle-medium" size="13" /> {{ n(kpis.friendInviteAccepted) }}/{{ n(kpis.friendInviteSent) }} lời mời</div>

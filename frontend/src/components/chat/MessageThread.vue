@@ -504,7 +504,11 @@
           </div>
         </template>
 
-        <div v-if="!loading && messages.length === 0" class="text-center pa-8 text-grey">Chưa có tin nhắn</div>
+        <div v-if="!loading && messages.length === 0" class="text-center pa-8 text-grey msg-empty">
+          <v-icon icon="mdi-message-outline" size="48" color="grey-lighten-1" class="mb-2" />
+          <div class="msg-empty-title">Chưa có tin nhắn</div>
+          <div class="msg-empty-sub">Hãy gõ lời chào để bắt đầu cuộc trò chuyện 💬</div>
+        </div>
       </div>
 
       <!-- Typing indicator -->
@@ -2499,9 +2503,12 @@ function albumGridClass(count: number): string {
 }
 
 // ── Context menu / actions ──────────────────────────────────────────────────
-function onContextMenu(event: MouseEvent, msg: Message) {
+function onContextMenu(event: MouseEvent | TouchEvent, msg: Message) {
   contextMsg.value = msg;
-  contextPos.value = { x: event.clientX, y: event.clientY };
+  // TouchEvent → touches[0] còn MouseEvent thì trực tiếp clientX/Y
+  const x = 'touches' in event && event.touches.length > 0 ? event.touches[0].clientX : (event as MouseEvent).clientX;
+  const y = 'touches' in event && event.touches.length > 0 ? event.touches[0].clientY : (event as MouseEvent).clientY;
+  contextPos.value = { x, y };
   showContextMenu.value = true;
 }
 function onToggleReaction(msg: Message, emoji: string) {
@@ -3131,6 +3138,9 @@ watch(() => props.editingMessage?.id, async (id) => {
   flex-direction: column;
   color: var(--smax-grey-700);
 }
+.msg-empty { color: var(--smax-grey-600); }
+.msg-empty-title { font-size: 15px; font-weight: 500; margin-top: 4px; }
+.msg-empty-sub { font-size: 13px; margin-top: 4px; color: var(--smax-grey-500); }
 
 /* ════════ Chat header (3-row layout — Anh chốt 2026-06-03) ════════
    Row 1: Tên KH + Gender (ưu tiên, tên đọc rõ)

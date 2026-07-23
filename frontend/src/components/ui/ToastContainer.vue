@@ -51,10 +51,14 @@ async function onAction(t: ToastItem) {
 <style scoped>
 .toast-container {
   position: fixed;
-  top: 20px; right: 20px;
+  top: 72px; right: 20px; /* 72px = dưới header (~56px) + buffer */
   display: flex; flex-direction: column; gap: 8px;
   z-index: 9999;
   pointer-events: none;
+}
+@media (max-width: 768px) {
+  .toast-container { top: 60px; right: 12px; left: 12px; }
+  .toast { min-width: 0; max-width: none; }
 }
 .toast {
   background: white;

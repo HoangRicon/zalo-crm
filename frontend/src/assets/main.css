@@ -135,3 +135,16 @@ html, body {
   box-shadow: 0 0 16px rgba(0, 242, 255, 0.2);
   transform: translateY(-1px);
 }
+
+/* ════════ Sticky table header cho reports (2026-07-24) ════════
+   Áp dụng cho mọi <table class="tbl"> ở views/reports/*.vue.
+   Khi scroll dọc trong card, header dính trên cùng để user biết cột nào là gì.
+   Lưu ý: border-collapse: collapse trên table sẽ phá sticky border — dùng
+   border riêng cho thead/cell để header có đường kẻ dưới. */
+table.tbl thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--smax-grey-50, #f9fafb);
+  box-shadow: inset 0 -1px 0 var(--smax-grey-200, #e5e7eb);
+}

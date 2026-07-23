@@ -360,7 +360,28 @@ function logout() {
 }
 </script>
 
-<style scoped>
+<style>
+/* Ensure full viewport height chain: html → body → #app → smax-app → v-main → smax-main */
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+#app {
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  text-align: left;
+  border: none;
+  display: block;
+  box-sizing: border-box;
+}
+.smax-app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
 /* Phase Internal Contact 2-method 2026-05-23 — banner persistent */
 .ic-banner {
   display: flex; align-items: center; gap: 14px;
@@ -449,7 +470,9 @@ function logout() {
 
 /* HD compact — chỉ kick in khi viewport < 1280 (rất hiếm với HD-first target) */
 @media (max-width: 1280px) {
-  .nav-tab { padding: 7px 9px; font-size: 12px; gap: 5px; }
+  /* FIX 2026-07-24: giữ font-size 13px (chỉ giảm padding) — chữ nhỏ 12px ở
+     laptop 13" gây khó đọc. Đổi padding để vẫn fit khi viewport nhỏ. */
+  .nav-tab { padding: 7px 8px; gap: 5px; }
 }
 @media (max-width: 1100px) {
   .nav-tab { padding: 6px 7px; gap: 4px; }
@@ -468,7 +491,11 @@ function logout() {
   .topnav-search { max-width: 160px; }
 }
 @media (max-width: 1100px) {
-  .topnav-search { display: none; }
+  /* FIX 2026-07-24: thu nhỏ còn icon thay vì ẩn hoàn toàn → vẫn search được. */
+  .topnav-search { max-width: 40px; }
+  .topnav-search :deep(.v-field__input),
+  .topnav-search :deep(.v-field__outline) { display: none; }
+  .topnav-search :deep(.v-field__field) { padding: 0; }
 }
 .topnav-search :deep(.v-field) {
   background: rgba(255, 255, 255, 0.08) !important;
@@ -512,20 +539,18 @@ function logout() {
 :deep(.v-main) {
   height: 100%;
   --v-layout-top: 48px !important;
+  --v-layout-bottom: 0px !important;
 }
 :deep(.v-main__scroller) {
   height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 .smax-main {
   background: var(--smax-grey-100);
-  height: 100%;
-  overflow: auto;
+  flex: 1;
   min-height: 0;
-}
-.smax-main :deep(.v-main__wrap) {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
+  overflow: auto;
 }
 
 /* Vuetify menus rendered from v-menu inherit theme automatically.

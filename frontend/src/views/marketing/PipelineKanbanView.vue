@@ -253,6 +253,12 @@ onMounted(async () => {
   margin-bottom: 6px;
   cursor: grab;
   transition: box-shadow 0.15s;
+  /* FIX 2026-07-24: cố định min-height + giới hạn max-height + scroll-y
+     để card không quá ngắn (1 dòng) khiến layout xấu và không quá dài
+     (10 dòng) lấn hết viewport cột. */
+  min-height: 78px;
+  max-height: 180px;
+  overflow-y: auto;
 }
 .kanban-card:hover {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);

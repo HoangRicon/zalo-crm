@@ -79,7 +79,11 @@
 
     <!-- ════════ Conv items ════════ -->
     <div ref="scrollContainer" class="conv-scroll">
-      <div v-if="loading && conversations.length === 0" class="loading">Đang tải…</div>
+      <div v-if="loading && conversations.length === 0" class="loading-spinner">
+        <v-progress-circular indeterminate color="primary" :size="28" :width="3" />
+        <span>Đang tải hội thoại…</span>
+        <div v-for="i in 5" :key="i" class="conv-skeleton" :style="{ width: (75 + (i % 3) * 8) + '%' }"></div>
+      </div>
 
       <!-- Phase A perf fix v2 (2026-05-21) — Re-thêm TransitionGroup nhưng với
            :key="activeTabKey" → tab switch tạo TransitionGroup INSTANCE MỚI,
@@ -228,7 +232,12 @@
       </TransitionGroup>
 
       <div v-if="!loading && conversations.length === 0" class="empty-state">
-        Chưa có hội thoại nào
+        <v-icon icon="mdi-message-text-outline" size="48" color="grey-lighten-1" />
+        <div class="empty-title">Chưa có hội thoại nào</div>
+        <div class="empty-sub">Bắt đầu chat với khách hàng đầu tiên của bạn</div>
+        <button class="empty-cta" @click="newMsgOpen = true">
+          <v-icon size="16">mdi-plus</v-icon> Bắt đầu chat mới
+        </button>
       </div>
     </div>
 
@@ -260,8 +269,9 @@
             Hội thoại sẽ được ẩn khỏi danh sách. Tin nhắn vẫn được giữ lại và có thể khôi phục sau.
           </div>
           <div class="del-actions">
-            <button class="del-btn del-btn--ghost" @click="closeDeleteDialog">Hủy</button>
-            <button ref="delConfirmBtn" class="del-btn del-btn--danger" :disabled="deleteDialog.busy" @click="confirmDeleteConversation">
+            <!-- FIX 2026-07-24: focus Hủy (an toàn) thay vì Xóa, tránh Enter vô tình xóa. -->
+            <button ref="delCancelBtn" class="del-btn del-btn--ghost" @click="closeDeleteDialog">Hủy</button>
+            <button class="del-btn del-btn--danger" :disabled="deleteDialog.busy" @click="confirmDeleteConversation">
               {{ deleteDialog.busy ? 'Đang xóa…' : 'Xóa' }}
             </button>
           </div>
@@ -457,7 +467,7 @@ const contextMenu = reactive({
 
 // Hộp xác nhận xóa hội thoại
 const deleteDialog = reactive({ show: false, convId: '', busy: false });
-const delConfirmBtn = ref<HTMLButtonElement | null>(null);
+const delCancelBtn = ref<HTMLButtonElement | null>(null);
 
 // ── Filter state ────────────────────────────────────────────────────────────
 const filters = reactive({
@@ -762,7 +772,7 @@ function askDeleteConversation() {
   deleteDialog.busy = false;
   deleteDialog.show = true;
   contextMenu.show = false;
-  nextTick(() => delConfirmBtn.value?.focus());
+  nextTick(() => delCancelBtn.value?.focus());
 }
 function closeDeleteDialog() {
   deleteDialog.show = false;
@@ -1370,6 +1380,28 @@ onBeforeUnmount(() => {
   padding: 20px; text-align: center;
   color: var(--smax-grey-700); font-size: 12px; font-style: italic;
 }
+.loading-spinner { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 24px; color: var(--smax-grey-600); font-size: 13px; }
+.conv-list .empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 48px 24px; text-align: center; gap: 4px;
+  color: var(--smax-grey-700); font-size: 13px;
+}
+.conv-list .empty-title { font-size: 15px; font-weight: 500; color: var(--smax-grey-800); margin-top: 8px; }
+.conv-list .empty-sub { font-size: 13px; color: var(--smax-grey-500); margin-bottom: 16px; }
+.conv-list .empty-cta {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 6px;
+  background: var(--smax-primary, #1976d2); color: white;
+  border: none; cursor: pointer; font-size: 13px; font-weight: 500;
+}
+.conv-list .empty-cta:hover { filter: brightness(0.95); }
+.conv-skeleton {
+  height: 14px; margin-top: 8px; border-radius: 4px;
+  background: linear-gradient(90deg, #eee 0%, #f7f7f7 50%, #eee 100%);
+  background-size: 200% 100%;
+  animation: conv-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes conv-skeleton-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
 .conv-item {
   padding: 11px 13px;

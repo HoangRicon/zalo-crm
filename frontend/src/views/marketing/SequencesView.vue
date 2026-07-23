@@ -50,7 +50,12 @@
         <div v-for="(step, idx) in form.steps" :key="step._uid" class="sv-step">
           <div class="sv-step-header">
             <span class="sv-step-num">Step {{ idx + 1 }}</span>
-            <button class="btn-danger-small" @click="removeStep(step._uid)">Xóa</button>
+            <div class="sv-step-actions">
+              <!-- FIX 2026-07-24: nút ↑↓ reorder (trước đây phải xóa + thêm lại) -->
+              <button class="btn-ghost-small" :disabled="idx === 0" title="Lên" @click="moveStep(step._uid, -1)">↑</button>
+              <button class="btn-ghost-small" :disabled="idx === form.steps.length - 1" title="Xuống" @click="moveStep(step._uid, +1)">↓</button>
+              <button class="btn-danger-small" @click="removeStep(step._uid)">Xóa</button>
+            </div>
           </div>
           <div class="sv-step-row">
             <div class="sv-field">
@@ -150,6 +155,17 @@ function addStep() {
 // FIX 2026-07-24: remove by _uid (stable) instead of splicing by idx (which Vue reuses wrong DOM).
 function removeStep(uid: string) {
   form.value.steps = form.value.steps.filter((s) => s._uid !== uid);
+}
+
+// FIX 2026-07-24: swap step với neighbor (direction = -1 ↑ hoặc +1 ↓)
+function moveStep(uid: string, direction: -1 | 1) {
+  const i = form.value.steps.findIndex((s) => s._uid === uid);
+  if (i < 0) return;
+  const j = i + direction;
+  if (j < 0 || j >= form.value.steps.length) return;
+  const next = form.value.steps.slice();
+  [next[i], next[j]] = [next[j], next[i]];
+  form.value.steps = next;
 }
 
 async function save() {

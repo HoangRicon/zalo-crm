@@ -23,6 +23,9 @@
         class="message-bubble"
         :class="{ 'is-self': isSelf, 'is-other': !isSelf }"
         @contextmenu.prevent="emit('contextmenu', $event)"
+        @touchstart="onTouchStart"
+        @touchend="onTouchEnd"
+        @touchmove="onTouchCancel"
       >
         <!-- Tên người gửi cho tin INBOUND — Anh chốt 2026-06-03 (4 case):
              1a. Nick có owner trong org (CASE B): "Tuan HS · Sale: Anh Tuấn"
@@ -381,7 +384,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  contextmenu: [event: MouseEvent];
+  contextmenu: [event: MouseEvent | TouchEvent];
   'preview-image': [url: string];
   'preview-video': [url: string, name: string];
   'toggle-reaction': [emoji: string];
@@ -396,6 +399,29 @@ const emit = defineEmits<{
   'explain-native': [];
   'audit-ai': [];
 }>();
+
+// 2026-07-24 — Mobile long-press to open context menu (desktop already uses
+// @contextmenu). Hold 500ms without moving → emit contextmenu with TouchEvent.
+let touchPressTimer: ReturnType<typeof setTimeout> | null = null;
+let touchStartX = 0;
+let touchStartY = 0;
+function onTouchStart(ev: TouchEvent) {
+  const t = ev.touches[0];
+  if (!t) return;
+  touchStartX = t.clientX;
+  touchStartY = t.clientY;
+  if (touchPressTimer) clearTimeout(touchPressTimer);
+  touchPressTimer = setTimeout(() => {
+    touchPressTimer = null;
+    emit('contextmenu', ev);
+  }, 500);
+}
+function onTouchEnd() {
+  if (touchPressTimer) { clearTimeout(touchPressTimer); touchPressTimer = null; }
+}
+function onTouchCancel() {
+  if (touchPressTimer) { clearTimeout(touchPressTimer); touchPressTimer = null; }
+}
 
 // 2026-06-11 — ảnh tin nhắn 404 (link Zalo hết hạn) → hiện placeholder thay ô vỡ.
 const imgFailed = ref(false);

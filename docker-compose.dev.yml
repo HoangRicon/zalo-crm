@@ -31,6 +31,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # 2026-07-24 fix-batch#1: AI Custom Endpoint connectivity.
+    # `host.docker.internal` không tự resolve trên Docker Linux/Mac podman — cần map
+    # sang host-gateway để container có thể gọi 9router/self-hosted LLM endpoint
+    # chạy ở host. Windows Docker Desktop tự map nhưng khai báo tường minh vẫn safe.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - file_storage:/var/lib/zalo-crm/files
       # Mount only source files to avoid overwriting Linux node_modules with Windows binaries

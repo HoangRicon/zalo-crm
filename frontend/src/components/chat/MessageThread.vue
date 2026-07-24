@@ -651,6 +651,18 @@
               @typing="onTypingEvent"
               @paste-image="onPasteImage"
             />
+            <!-- 2026-07-24 follow-up: preview ảnh inline dưới editor khi chọn mẫu có ảnh.
+                 Phase 1 chỉ preview — ảnh sẽ được upload kèm khi Enter trong Phase 2. -->
+            <div v-if="pendingTemplateImage" class="mt-template-image-preview">
+              <img :src="pendingTemplateImage" class="mt-template-image-preview-img" />
+              <button
+                type="button"
+                class="mt-template-image-preview-remove"
+                title="Bỏ ảnh đính kèm"
+                @click="pendingTemplateImage = null"
+              >×</button>
+              <span class="mt-template-image-preview-hint">📷 Ảnh sẽ gửi kèm khi bấm Enter</span>
+            </div>
             <!-- Privacy lock overlay — chỉ phủ input editor, KHÔNG che toolbar bên ngoài -->
             <div
               v-if="!privacyVisibility.canSendInConv(conversation)"
@@ -1047,6 +1059,8 @@ import { registerPendingTags, clearPendingTags } from '@/composables/use-pending
 interface TemplateItem {
   id: string; name: string; shortcut?: string | null; content: string; category: string | null; isPersonal: boolean;
   contentRich?: { text: string; styles?: Array<{ st: string; start: number; len: number }> } | null;
+  // 2026-07-24 follow-up: ảnh đính kèm mẫu tin (lưu base64 trong DB từ commit 7965806).
+  imageBase64?: string | null;
   tagIds?: string[];
 }
 
@@ -1441,6 +1455,8 @@ watch(() => props.conversation?.id, (newId, oldId) => {
   // fetchAllLabels → "hiện sai vài giây rồi nhảy đúng". Xoá xong currentLabel sẽ
   // fallback về friendship.zaloLabels của ĐÚNG nick mới (lấy từ list) cho tới khi API về.
   allLabels.value = [];
+  // 2026-07-24 follow-up: chuyển conversation → clear ảnh pending (Phase 1) cho gọn.
+  pendingTemplateImage.value = null;
   const accId = props.conversation?.zaloAccount?.id;
   const threadId = props.conversation?.externalThreadId;
   if (accId) {
@@ -2688,11 +2704,16 @@ function onCancelReplyEdit() {
 const showTemplatePopup = ref(false);
 const templateQuery = ref('');
 const templates = ref<TemplateItem[]>([]);
+// 2026-07-24 follow-up: ảnh inline preview khi chọn mẫu có imageBase64.
+// Phase 1: chỉ UI — không upload. Phase 2 sẽ hookup gửi kèm khi Enter.
+const pendingTemplateImage = ref<string | null>(null);
 
 async function loadTemplates() {
   try {
-    const res = await api.get<{ templates: TemplateItem[] }>('/automation/templates');
-    templates.value = res.data.templates;
+    // 2026-07-24 follow-up: đổi endpoint từ /automation/templates (không tồn tại — popup shortcut
+    // đã broken từ trước) sang /message-templates (route MessageTemplate CRUD).
+    const res = await api.get<{ templates: TemplateItem[] }>('/message-templates');
+    templates.value = res.data.templates || [];
   } catch { /* non-critical */ }
 }
 onMounted(() => { loadTemplates(); });
@@ -2778,7 +2799,12 @@ function onComposerNavKey(event: KeyboardEvent): boolean {
 
 // Chèn mẫu: giữ định dạng đậm/màu qua applyRichPayload (biến đã render + re-anchor offset ở popup).
 // Thay nội dung ô bằng (text trước "/") + mẫu. KHÔNG auto-send — sale tự Enter.
-function onTemplateSelect(payload: { text: string; styles?: Array<{ st: string; start: number; len: number }> }, templateId: string) {
+// 2026-07-24 follow-up: thêm imageBase64 param — Phase 1 lưu vào state để preview inline.
+function onTemplateSelect(
+  payload: { text: string; styles?: Array<{ st: string; start: number; len: number }> },
+  templateId: string,
+  imageBase64?: string | null,
+) {
   const pos = slashTriggerPos.value;
   const before = pos >= 0 ? inputText.value.slice(0, pos) : '';
   const merged = before + payload.text;
@@ -2791,8 +2817,10 @@ function onTemplateSelect(payload: { text: string; styles?: Array<{ st: string; 
   showTemplatePopup.value = false;
   slashTriggerPos.value = -1;
   templateQuery.value = '';
-  // Track use (non-blocking)
-  api.post(`/automation/templates/${templateId}/track-use`).catch(() => {});
+  // 2026-07-24 follow-up: Phase 1 — lưu ảnh base64 cho preview inline. Phase 2 sẽ hookup gửi kèm khi Enter.
+  pendingTemplateImage.value = imageBase64 ?? null;
+  // Track use (non-blocking) — endpoint /message-templates/:id/track-use chưa có, fallback silent fail.
+  api.post(`/message-templates/${templateId}/track-use`).catch(() => {});
 }
 
 // ── M14 (2026-06-02): Chèn Khối tin nhắn (Automation Blocks) vào composer ──
@@ -2884,6 +2912,13 @@ function handleSend() {
   }
   inputText.value = '';
   editorRef.value?.clear();
+  // 2026-07-24 follow-up: Phase 1 — ảnh từ mẫu chưa gửi kèm (Phase 2 mới hookup). Clear preview.
+  // Phase 2: base64 → convert → upload multipart kèm text → attach vào message.
+  if (pendingTemplateImage.value) {
+    // Phase 1: chỉ toast cảnh báo user. Phase 2 sẽ gửi thật.
+    // (Im lặng khi user đã bỏ qua Phase 1 — không spam toast.)
+    pendingTemplateImage.value = null;
+  }
   emit('cancel-reply-edit');
 }
 
@@ -4183,4 +4218,53 @@ watch(() => props.editingMessage?.id, async (id) => {
 }
 .zlbl-manage:hover { background: var(--smax-grey-50); color: var(--smax-primary); }
 .manage-icon { font-size: 14px; }
+
+/* 2026-07-24 follow-up: inline preview ảnh mẫu dưới editor (Phase 1) */
+.mt-template-image-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  margin-top: 6px;
+  background: #f7f9fc;
+  border: 1px solid #e3e6eb;
+  border-radius: 8px;
+  position: relative;
+}
+.mt-template-image-preview-img {
+  max-width: 80px;
+  max-height: 60px;
+  object-fit: cover;
+  border-radius: 5px;
+  border: 1px solid #e3e6eb;
+  flex-shrink: 0;
+}
+.mt-template-image-preview-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.mt-template-image-preview-remove:hover { background: #b91c1c; }
+.mt-template-image-preview-hint {
+  font-size: 11.5px;
+  color: #6b7280;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 </style>

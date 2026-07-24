@@ -20,8 +20,11 @@
       </div>
 
       <!-- Xem trước (gọn, ở TRÊN danh sách — sát mép trên popup) -->
-      <div v-if="previewText" class="qtp-preview">
-        <span class="qtp-preview-lbl">Xem trước:</span> {{ previewText }}
+      <div v-if="previewText || previewImage" class="qtp-preview">
+        <span class="qtp-preview-lbl">Xem trước:</span>
+        <div v-if="previewText" class="qtp-preview-text">{{ previewText }}</div>
+        <!-- 2026-07-24 follow-up: preview ảnh đính kèm (nếu mẫu có imageBase64) -->
+        <img v-if="previewImage" :src="previewImage" class="qtp-preview-img" />
       </div>
 
       <!-- Danh sách mẫu (ở DƯỚI — sát ô nhập, dễ thấy + chọn nhất) -->
@@ -34,7 +37,9 @@
           @click="selectTemplate(tpl)"
           @mouseenter="selectedIndex = i"
         >
-          <v-icon :icon="tpl.isPersonal ? 'mdi-account' : 'mdi-account-group'" size="15"
+          <!-- 2026-07-24 follow-up: thumbnail ảnh nếu mẫu có imageBase64 -->
+          <img v-if="tpl.imageBase64" :src="tpl.imageBase64" class="qtp-item-thumb" />
+          <v-icon v-else :icon="tpl.isPersonal ? 'mdi-account' : 'mdi-account-group'" size="15"
             :color="tpl.isPersonal ? '#1786be' : '#9ca3af'" class="qtp-item-icon" />
           <span class="qtp-item-body">
             <span class="qtp-item-name">
@@ -64,6 +69,8 @@ interface Template {
   shortcut?: string | null;
   content: string;
   contentRich?: RichPayload | null;
+  // 2026-07-24 follow-up: ảnh đính kèm (data URL base64) — hiển thị thumbnail + preview
+  imageBase64?: string | null;
   category: string | null;
   tagIds?: string[];
   isPersonal: boolean;
@@ -85,7 +92,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   // Trả rich payload {text, styles} (giữ đậm/màu) + id để track-use.
-  select: [payload: RichPayload, templateId: string];
+  // 2026-07-24 follow-up: thêm imageBase64 để FE attach ảnh (Phase 1: preview only).
+  select: [payload: RichPayload, templateId: string, imageBase64: string | null];
   close: [];
 }>();
 
@@ -251,8 +259,15 @@ const previewText = computed(() => {
   return renderRich(tpl).text;
 });
 
+// 2026-07-24 follow-up: ảnh của mẫu đang chọn (preview ở panel trên popup)
+const previewImage = computed(() => {
+  const tpl = filtered.value[selectedIndex.value];
+  return tpl?.imageBase64 ?? '';
+});
+
 function selectTemplate(tpl: Template) {
-  emit('select', renderRich(tpl), tpl.id);
+  // 2026-07-24 follow-up: truyền thêm imageBase64 để MessageThread attach ảnh (Phase 1: chỉ preview)
+  emit('select', renderRich(tpl), tpl.id, tpl.imageBase64 ?? null);
 }
 
 function onKey(e: KeyboardEvent) {
@@ -291,7 +306,7 @@ defineExpose({ onKey });
 .qtp-tag:hover { border-color: #1786be; }
 .qtp-tag.active { background: #e6f3fb; border-color: #1786be; color: #0f6ea3; font-weight: 600; }
 
-/* Xem trước — gọn 2 dòng */
+/* Xem trước — gọn, có text + ảnh (nếu có) */
 .qtp-preview {
   padding: 7px 11px;
   background: #f7f9fc;
@@ -299,12 +314,24 @@ defineExpose({ onKey });
   font-size: 12.5px;
   color: #374151;
   line-height: 1.45;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.qtp-preview-text {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 .qtp-preview-lbl { color: #9ca3af; font-size: 11px; font-weight: 600; }
+.qtp-preview-img {
+  max-width: 100%;
+  max-height: 120px;
+  object-fit: contain;
+  border-radius: 6px;
+  margin-top: 6px;
+  display: block;
+}
 
 /* Danh sách — chiếm phần còn lại, cuộn riêng, luôn thấy đủ */
 .qtp-list { flex: 1; min-height: 0; max-height: 280px; overflow-y: auto; padding: 4px; }
@@ -315,6 +342,14 @@ defineExpose({ onKey });
 }
 .qtp-item:hover, .qtp-item.active { background: #e6f3fb; }
 .qtp-item-icon { flex-shrink: 0; }
+/* 2026-07-24 follow-up: thumbnail ảnh cho mẫu có imageBase64 */
+.qtp-item-thumb {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
 .qtp-item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .qtp-item-name { font-size: 13px; font-weight: 600; color: #141a24; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .qtp-item-sc { font-size: 11px; font-weight: 600; color: #0f6ea3; background: #eef6fb; padding: 1px 5px; border-radius: 5px; margin-left: 5px; font-family: ui-monospace, monospace; }

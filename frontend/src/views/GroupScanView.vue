@@ -85,39 +85,41 @@
           </v-btn>
         </div>
 
-        <!-- group list with checkboxes -->
+        <!-- group list with checkboxes — scrollable, max ~400px so action bar stays visible -->
         <v-progress-linear v-if="loading" indeterminate color="primary" />
         <div v-if="!loading && !filteredGroups.length" class="pa-12 text-center text-medium-emphasis">
           <v-icon size="48" class="mb-3" color="primary">mdi-account-group-outline</v-icon>
           <div class="text-subtitle-1">Chưa có nhóm nào</div>
           <div class="text-body-2">Nick phải đang là thành viên của nhóm để quét.</div>
         </div>
-        <v-list v-else lines="two" density="comfortable">
-          <v-list-item
-            v-for="g in filteredGroups"
-            :key="g.id"
-            @click="toggleGroup(g.id)"
-          >
-            <template #prepend>
-              <v-checkbox-btn
-                :model-value="selectedIds.has(g.id)"
-                color="primary"
-                @click.stop="toggleGroup(g.id)"
-              />
-              <v-avatar :color="avatarColor(g.id)" size="42" rounded="lg" class="ml-1 mr-3">
-                <span class="text-white font-weight-bold">{{ initials(groupName(g)) }}</span>
-              </v-avatar>
-            </template>
-            <v-list-item-title class="font-weight-medium">{{ groupName(g) }}</v-list-item-title>
-            <v-list-item-subtitle class="d-flex align-center gap-2">
-              <v-icon size="14">mdi-account-multiple</v-icon>
-              <span>{{ g.totalMember ?? g.totalMembers ?? 0 }} thành viên</span>
-              <v-chip v-if="isCommunity(g)" size="x-small" color="warning" variant="tonal">
-                <v-icon start size="12">mdi-office-building</v-icon> Cộng đồng
-              </v-chip>
-            </v-list-item-subtitle>
-          </v-list-item>
-        </v-list>
+        <div v-else class="gs-group-list-wrap">
+          <v-list lines="two" density="comfortable">
+            <v-list-item
+              v-for="g in filteredGroups"
+              :key="g.id"
+              @click="toggleGroup(g.id)"
+            >
+              <template #prepend>
+                <v-checkbox-btn
+                  :model-value="selectedIds.has(g.id)"
+                  color="primary"
+                  @click.stop="toggleGroup(g.id)"
+                />
+                <v-avatar :color="avatarColor(g.id)" size="42" rounded="lg" class="ml-1 mr-3">
+                  <span class="text-white font-weight-bold">{{ initials(groupName(g)) }}</span>
+                </v-avatar>
+              </template>
+              <v-list-item-title class="font-weight-medium">{{ groupName(g) }}</v-list-item-title>
+              <v-list-item-subtitle class="d-flex align-center gap-2">
+                <v-icon size="14">mdi-account-multiple</v-icon>
+                <span>{{ g.totalMember ?? g.totalMembers ?? 0 }} thành viên</span>
+                <v-chip v-if="isCommunity(g)" size="x-small" color="warning" variant="tonal">
+                  <v-icon start size="12">mdi-office-building</v-icon> Cộng đồng
+                </v-chip>
+              </v-list-item-subtitle>
+            </v-list-item>
+          </v-list>
+        </div>
 
         <!-- sticky action bar -->
         <div class="d-flex align-center gap-3 pa-3 border-t sticky-bar">
@@ -556,5 +558,12 @@ onBeforeUnmount(stopPolling);
 .gs-roster-table :deep(.v-table__wrapper) {
   max-height: 100%;
   overflow: auto;
+}
+
+/* Group list scrollable wrapper: max-height so action bar always stays visible */
+.gs-group-list-wrap {
+  overflow-y: auto;
+  max-height: 420px;
+  flex-shrink: 0;
 }
 </style>

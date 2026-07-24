@@ -12,6 +12,7 @@ export interface MessageTemplate {
   shortcut: string | null;
   content: string;
   contentRich: unknown | null;
+  imageBase64: string | null;
   category: string | null;
   tagIds: string[];
   usageCount: number;

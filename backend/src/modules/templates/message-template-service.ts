@@ -15,6 +15,7 @@ export interface MessageTemplate {
   shortcut: string | null;
   content: string;
   contentRich: unknown | null;
+  imageBase64: string | null;
   category: string | null;
   tagIds: string[];
   usageCount: number;
@@ -99,6 +100,7 @@ export async function createTemplate(data: {
   shortcut?: string | null;
   content: string;
   contentRich?: unknown | null;
+  imageBase64?: string | null;
   category?: string | null;
   tagIds?: string[];
   createdById?: string;
@@ -113,6 +115,7 @@ export async function createTemplate(data: {
       shortcut: data.shortcut?.toLowerCase().trim() || null,
       content: data.content,
       contentRich: (data.contentRich ?? Prisma.JsonNull) as unknown as Prisma.InputJsonValue | typeof Prisma.JsonNull,
+      imageBase64: data.imageBase64 ?? null,
       category: data.category ?? null,
       tagIds: data.tagIds ?? [],
       createdById: data.createdById ?? null,
@@ -130,6 +133,7 @@ export async function updateTemplate(
     shortcut: string | null;
     content: string;
     contentRich: unknown | null;
+    imageBase64: string | null;
     category: string | null;
     tagIds: string[];
     folderId: string | null;
@@ -152,6 +156,7 @@ export async function updateTemplate(
   if (data.shortcut !== undefined) updateData.shortcut = data.shortcut?.toLowerCase().trim() || null;
   if (data.content !== undefined) updateData.content = data.content;
   if (data.contentRich !== undefined) updateData.contentRich = data.contentRich;
+  if (data.imageBase64 !== undefined) updateData.imageBase64 = data.imageBase64;
   if (data.category !== undefined) updateData.category = data.category;
   if (data.tagIds !== undefined) updateData.tagIds = data.tagIds;
   if (data.folderId !== undefined) updateData.folderId = data.folderId;

@@ -1636,6 +1636,10 @@ model MessageTemplate {
   shortcut         String?
   content          String // plain text ? LU?N = contentRich.text (derive ? route), d?ng search + ch?n chat
   contentRich      Json?     @map("content_rich") // { text: string, styles: [{st,start,len}] } ? ??nh d?ng Zalo
+  // 2026-07-24 fix-batch#3: ?nh ?nh k?m m?u tin nh?n (FE upload FileReader -> base64, l?u tr?c ti?p v?o DB).
+  // L? do: ?nh m?u th??ng nh? (< 500KB), tr?nh ph? thu?c S3/storage. C? th? migrate sang storage sau n?u c?n.
+  // Gi?i h?n 1MB (sau decode) check ? route layer ?? tr?nh backup DB ph?ng to.
+  imageBase64      String?   @map("image_base64") @db.Text
   category         String? // ph?n lo?i ch?c n?ng (FAQ/Ch?o/Ch?t) ? song song tagIds d? ?n
   tagIds           String[]  @default([]) @map("tag_ids") // 4 tag d? ?n + free-form
   usageCount       Int       @default(0) @map("usage_count")

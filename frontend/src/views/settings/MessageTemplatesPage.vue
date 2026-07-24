@@ -139,6 +139,12 @@
                   <div class="mtp-preview-text">{{ selectedTemplate.content }}</div>
                 </div>
 
+                <!-- 2026-07-24 fix-batch#3: ảnh đính kèm (nếu có) -->
+                <div v-if="selectedTemplate.imageBase64" class="mtp-preview-image">
+                  <div class="mtp-preview-label">Ảnh đính kèm:</div>
+                  <img :src="selectedTemplate.imageBase64" class="mtp-preview-image-img" />
+                </div>
+
                 <!-- Variables -->
                 <div v-if="templateVariables.length > 0" class="mtp-variables">
                   <div class="mtp-preview-label">Biến sử dụng:</div>
@@ -625,6 +631,16 @@ onMounted(async () => {
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* 2026-07-24 fix-batch#3: hiển thị ảnh preview */
+.mtp-preview-image { margin-bottom: 16px; }
+.mtp-preview-image-img {
+  max-width: 100%;
+  max-height: 280px;
+  border-radius: 8px;
+  border: 1px solid #e4e5e9;
+  display: block;
 }
 
 .mtp-variables {

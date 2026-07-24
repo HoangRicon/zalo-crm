@@ -20,6 +20,9 @@
         @click="$emit('select', template)"
       >
         <div class="tpl-item-header">
+          <!-- 2026-07-24 fix-batch#3: thumbnail ảnh (nếu có) để list dễ scan -->
+          <img v-if="template.imageBase64" :src="template.imageBase64" class="tpl-item-thumb" />
+          <v-icon v-else size="20" color="grey-lighten-1" class="tpl-item-thumb-icon">mdi-text-box-outline</v-icon>
           <div class="tpl-item-name">{{ template.name }}</div>
           <div class="tpl-item-actions">
             <v-btn
@@ -121,14 +124,31 @@ function truncateContent(content: string, maxLength = 120): string {
 .tpl-item-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   margin-bottom: 4px;
+}
+
+/* 2026-07-24 fix-batch#3: thumbnail style */
+.tpl-item-thumb {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.tpl-item-thumb-icon {
+  flex-shrink: 0;
 }
 
 .tpl-item-name {
   font-size: 13.5px;
   font-weight: 600;
   color: #1f2d3d;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tpl-item-actions {

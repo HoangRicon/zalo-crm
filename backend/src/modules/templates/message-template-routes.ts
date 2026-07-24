@@ -25,10 +25,26 @@ interface TemplateBody {
   shortcut?: string | null;
   content?: string;
   contentRich?: unknown | null;
+  // 2026-07-24 fix-batch#3: ?nh ?nh k?m m?u tin nh?n (data URL base64 t? FileReader).
+  // Validate size prefix `data:image/...;base64,` ? gi?i h?n 1.4MB raw (t??ng ?ng ~1MB decode).
+  imageBase64?: string | null;
   category?: string | null;
   tagIds?: string[];
   folderId?: string | null;
   visibility?: 'public' | 'private';
+}
+
+// 2026-07-24 fix-batch#3: Validate imageBase64 input.
+// Prefix `data:image/...;base64,` (~30 chars) + payload. Cap 1.4MB raw = ~1MB decode.
+// Tr?nh backup DB ph?ng to + DoS qua upload.
+const MAX_IMAGE_BASE64_LENGTH = 1.4 * 1024 * 1024;
+function validateImageBase64(raw: string): string | null {
+  if (typeof raw !== 'string') return 'imageBase64 ph?i l? string';
+  if (!raw) return null; // empty string handled by caller (clear image)
+  const m = /^data:image\/(jpeg|jpg|png|gif|webp);base64,([A-Za-z0-9+/=]+)$/i.exec(raw);
+  if (!m) return 'imageBase64 ph?i l? data URL h?p l? (data:image/(jpeg|png|gif|webp);base64,...)';
+  if (raw.length > MAX_IMAGE_BASE64_LENGTH) return `imageBase64 qu? l?n (t?i ?a ${Math.round(MAX_IMAGE_BASE64_LENGTH / 1024)}KB raw)`;
+  return null;
 }
 
 interface FolderBody {
@@ -68,6 +84,12 @@ export async function messageTemplateRoutes(app: FastifyInstance): Promise<void>
       return reply.status(400).send({ error: 'content_required' });
     }
 
+    // 2026-07-24 fix-batch#3: validate imageBase64 n?u FE g?i.
+    if (body.imageBase64) {
+      const imgErr = validateImageBase64(body.imageBase64);
+      if (imgErr) return reply.status(400).send({ error: 'invalid_image', detail: imgErr });
+    }
+
     // Validate folder if provided
     if (body.folderId) {
       const folder = await import('../../modules/templates/message-template-service.js')
@@ -87,6 +109,7 @@ export async function messageTemplateRoutes(app: FastifyInstance): Promise<void>
       shortcut: body.shortcut ?? null,
       content: body.content,
       contentRich: body.contentRich ?? null,
+      imageBase64: body.imageBase64 ?? null,
       category: body.category ?? null,
       tagIds: body.tagIds ?? [],
       createdById: user.id,
@@ -132,11 +155,17 @@ export async function messageTemplateRoutes(app: FastifyInstance): Promise<void>
       }
 
       const body = request.body ?? {};
+      // 2026-07-24 fix-batch#3: validate imageBase64 n?u FE g?i (PUT d?ng c?ch clear ? g?i null).
+      if (body.imageBase64) {
+        const imgErr = validateImageBase64(body.imageBase64);
+        if (imgErr) return reply.status(400).send({ error: 'invalid_image', detail: imgErr });
+      }
       const template = await updateTemplate(request.params.id, user.orgId, {
         name: body.name?.trim(),
         shortcut: body.shortcut,
         content: body.content,
         contentRich: body.contentRich,
+        imageBase64: body.imageBase64,
         category: body.category,
         tagIds: body.tagIds,
         folderId: body.folderId,

@@ -256,7 +256,7 @@ onMounted(() => {
   // 2026-06-13 (anh chốt): app LUÔN theme sáng 'hsLight', bỏ chọn theme tối. Ép cứng +
   // dọn giá trị 'legacy-dark'/'smax-light' cũ trong localStorage để user nào đang kẹt
   // dark cũng về sáng.
-  theme.global.name.value = 'hsLight';
+  theme.change('hsLight');
   localStorage.setItem('theme', 'hsLight');
   void checkInternalContactSetup();
 

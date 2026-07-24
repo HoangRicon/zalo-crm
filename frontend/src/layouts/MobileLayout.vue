@@ -55,7 +55,7 @@ const router = useRouter();
 const isDark = ref(false);
 
 onMounted(() => {
-  theme.global.name.value = 'hsLight';
+  theme.change('hsLight');
   localStorage.setItem('theme', 'hsLight');
 });
 

@@ -58,7 +58,7 @@ watch(
     }
     loading.value = true;
     try {
-      const res = await api.post('/api/v1/broadcast/preview', {
+      const res = await api.post('/broadcast/preview', {
         sourceType: props.sourceType,
         customerListId: props.customerListId,
         zaloAccountId: props.zaloAccountId,

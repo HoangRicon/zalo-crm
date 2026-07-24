@@ -47,7 +47,7 @@ async function onToggle(e: Event) {
   const newVal = target.checked;
   saving.value = true;
   try {
-    await api.put(`/api/v1/zalo-accounts/${props.accountId}/broadcast-blacklist`, {
+    await api.put(`/zalo-accounts/${props.accountId}/broadcast-blacklist`, {
       blacklisted: newVal,
       reason: newVal ? reason.value : null,
     });
@@ -66,7 +66,7 @@ async function onSaveReason() {
   if ((reason.value ?? '').trim() === (props.modelReason ?? '').trim()) return;
   saving.value = true;
   try {
-    await api.put(`/api/v1/zalo-accounts/${props.accountId}/broadcast-blacklist`, {
+    await api.put(`/zalo-accounts/${props.accountId}/broadcast-blacklist`, {
       blacklisted: true,
       reason: reason.value,
     });

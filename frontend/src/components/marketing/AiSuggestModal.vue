@@ -78,7 +78,7 @@ async function fetchSuggestions() {
   suggestions.value = [];
   source.value = null;
   try {
-    const res = await api.post('/api/v1/ai/suggest-content-blocks', {
+    const res = await api.post('/ai/suggest-content-blocks', {
       userIntent: userIntent.value,
       count: count.value,
     });

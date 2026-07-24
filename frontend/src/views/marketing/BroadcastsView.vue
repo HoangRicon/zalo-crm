@@ -332,7 +332,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, reactive, ref } from 'vue';
+import { onMounted, onUnmounted, reactive, ref, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { api } from '@/api/index';
 import { listMedia, type MediaAssetItem } from '@/api/media';

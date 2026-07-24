@@ -117,7 +117,7 @@ async function loadAll(): Promise<void> {
     if (filterOwner.value) params.ownerUserId = filterOwner.value;
     if (filterMinScore.value != null && filterMinScore.value > 0) params.minScore = filterMinScore.value;
     if (filterMaxScore.value != null && filterMaxScore.value > 0) params.maxScore = filterMaxScore.value;
-    const res = await api.get('/api/v1/contacts', { params });
+    const res = await api.get('/contacts', { params });
     const list = (res.data.contacts ?? res.data ?? []) as Array<Record<string, unknown>>;
     const now = Date.now();
     contacts.value = list.map((c) => {
@@ -144,7 +144,7 @@ async function loadAll(): Promise<void> {
 async function loadOwners(): Promise<void> {
   try {
     // Optional: load org users. Reuse /me/org-users or simple list
-    const res = await api.get('/api/v1/org/users', { params: { limit: 100 } }).catch(() => ({ data: { users: [] } }));
+    const res = await api.get('/org/users', { params: { limit: 100 } }).catch(() => ({ data: { users: [] } }));
     owners.value = (res.data.users ?? res.data ?? []) as Owner[];
   } catch { /* silent */ }
 }
@@ -164,7 +164,7 @@ async function onDrop(e: DragEvent, targetStatus: string) {
   const oldStatus = card.status;
   card.status = targetStatus; // optimistic
   try {
-    await api.patch(`/api/v1/contacts/${id}`, { status: targetStatus });
+    await api.patch(`/contacts/${id}`, { status: targetStatus });
     toast(`Đã chuyển sang "${COLUMNS.find((c) => c.key === targetStatus)?.label}"`, 'success');
   } catch (err: any) {
     card.status = oldStatus; // rollback

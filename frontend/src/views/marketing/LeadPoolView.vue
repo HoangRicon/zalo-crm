@@ -8,7 +8,7 @@
       <div class="lpv-title-row">
         <div>
           <h1 class="lpv-title">Lead Pool</h1>
-          <p class="lpv-subtitle">Quản lý và phân phối lead cho đội ngũ sale</p>
+          <p class="lpv-subtitle">Quản lý và phân phối lead cho đội ngũ sale — nhân viên tự nhận lead từ pool theo thứ tự FIFO (ai nhận trước được lead cũ nhất).</p>
         </div>
         <div class="lpv-actions">
           <button class="btn btn-ghost" @click="refresh">
@@ -59,6 +59,26 @@
           <div class="lpv-stat-value">{{ stats.upcomingAutoReturns.toLocaleString('vi-VN') }}</div>
           <div class="lpv-stat-label">Sắp tự trả (24h)</div>
         </div>
+      </div>
+    </div>
+
+    <!-- User quota info bar -->
+    <div v-if="quota" class="lpv-quota-bar">
+      <div class="lpv-quota-item">
+        <v-icon size="14">mdi-counter</v-icon>
+        <span>Hôm nay: <strong>{{ quota.usedToday }}</strong> / {{ quota.dailyLimit }} lead đã nhận</span>
+      </div>
+      <div v-if="quota.remaining > 0" class="lpv-quota-item ok">
+        <v-icon size="14">mdi-check-circle-outline</v-icon>
+        <span>Còn <strong>{{ quota.remaining }}</strong> lead có thể nhận</span>
+      </div>
+      <div v-else class="lpv-quota-item warn">
+        <v-icon size="14">mdi-alert-circle-outline</v-icon>
+        <span>Đã hết quota hôm nay</span>
+      </div>
+      <div v-if="quota.cooldownSeconds > 0" class="lpv-quota-item warn">
+        <v-icon size="14">mdi-timer-outline</v-icon>
+        <span>Cooldown {{ Math.ceil(quota.cooldownSeconds / 60) }} phút</span>
       </div>
     </div>
 
@@ -257,6 +277,7 @@ import {
   getPooledLeads,
   getDistributions,
   getLeadRequests,
+  getUserQuota,
 } from '@/api/lead-pool';
 import type { PooledLead, LeadDistribution, LeadRequest } from '@/api/lead-pool';
 
@@ -269,6 +290,7 @@ const TABS = [
 const activeTab = ref('pool');
 const confirm = useConfirm();
 const stats = ref({ leadsInPool: 0, assignedToday: 0, pendingRequests: 0, upcomingAutoReturns: 0 });
+const quota = ref<{ usedToday: number; dailyLimit: number; remaining: number; cooldownSeconds: number } | null>(null);
 
 // Pool leads state
 const poolLeads = ref<PooledLead[]>([]);
@@ -465,7 +487,17 @@ async function onClaimLead(lead: PooledLead) {
 onMounted(() => {
   fetchStats();
   fetchPoolLeads();
+  fetchQuota();
 });
+
+async function fetchQuota() {
+  try {
+    const q = await getUserQuota();
+    quota.value = { usedToday: q.usedToday, dailyLimit: q.dailyLimit, remaining: q.remaining, cooldownSeconds: q.cooldownSeconds ?? 0 };
+  } catch (e) {
+    // ignore
+  }
+}
 </script>
 
 <style scoped>
@@ -754,4 +786,26 @@ onMounted(() => {
   font-size: 14px;
   color: var(--text-primary, #1e293b);
 }
+
+/* User quota bar */
+.lpv-quota-bar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 16px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+.lpv-quota-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #1e40af;
+}
+.lpv-quota-item.ok { color: #15803d; }
+.lpv-quota-item.warn { color: #c2410c; }
+.lpv-quota-item strong { font-weight: 700; }
 </style>

@@ -118,7 +118,7 @@ async function generatePlan() {
   error.value = '';
   applyResult.value = null;
   try {
-    const res = await api.post('/api/v1/ai/plan-campaign', { userGoal: userGoal.value });
+    const res = await api.post('/ai/plan-campaign', { userGoal: userGoal.value });
     plan.value = res.data.plan;
     planId.value = res.data.planId;
     source.value = res.data.source;
@@ -133,7 +133,7 @@ async function applyPlan() {
   if (!planId.value) return;
   applying.value = true;
   try {
-    const res = await api.post(`/api/v1/ai/plan-campaign/${planId.value}/apply`);
+    const res = await api.post(`/ai/plan-campaign/${planId.value}/apply`);
     applyResult.value = { jobId: res.data.jobId };
     toast('Đã tạo broadcast job', 'success');
   } catch (e: any) {

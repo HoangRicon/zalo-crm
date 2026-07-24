@@ -748,7 +748,7 @@ const stickerMeta = ref<StickerMeta | null>(null);
 
 async function fetchStickerMeta(catId: string | number, id: string | number) {
   try {
-    const res = await fetch(`/api/v1/zalo-sticker/${catId}/${id}`);
+    const res = await fetch(`/zalo-sticker/${catId}/${id}`);
     if (!res.ok) return;
     stickerMeta.value = (await res.json()) as StickerMeta;
   } catch (err) {
@@ -765,7 +765,7 @@ const stickerFallbackUrl = computed<string>(() => {
   const id = (p as Record<string, unknown>).id;
   const catId = (p as Record<string, unknown>).catId;
   if (!id || !catId) return '';
-  return `/api/v1/zalo-sticker/${catId}/${id}?img=1`;
+  return `/zalo-sticker/${catId}/${id}?img=1`;
 });
 
 watch(() => props.message.content, (content) => {

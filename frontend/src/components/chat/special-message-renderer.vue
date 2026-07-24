@@ -692,7 +692,7 @@ async function fetchBankCardData(url: string) {
   bankCardLoading.value = true;
   bankCardData.value = null;
   try {
-    const res = await fetch(`/api/v1/zalo-bankcard?url=${encodeURIComponent(url)}`);
+    const res = await fetch(`/zalo-bankcard?url=${encodeURIComponent(url)}`);
     if (!res.ok) return;
     const data = await res.json();
     if (data?.accountNumber && data?.bankCode) {

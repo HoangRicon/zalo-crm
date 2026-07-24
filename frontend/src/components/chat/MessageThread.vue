@@ -2891,6 +2891,46 @@ async function dispatchBlockComponents(blockId: string) {
   }
 }
 
+// 2026-07-24 phase-2: Convert data URL (data:image/...;base64,...) sang File để multipart upload.
+function dataUrlToFile(dataUrl: string, filename: string): File {
+  const m = /^data:([^;]+);base64,(.+)$/i.exec(dataUrl);
+  if (!m) throw new Error('invalid_data_url');
+  const mime = m[1];
+  const b64 = m[2];
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new File([arr], filename, { type: mime });
+}
+
+// 2026-07-24 phase-2: Gửi kèm ảnh từ mẫu (Phase 2). Tận dụng endpoint hiện có
+// POST /conversations/:id/attachments (multipart: files[] + caption) → Zalo gửi 1 message có cả text + ảnh.
+// BE lưu caption vào metadata.caption để FE render text dưới ảnh.
+async function sendTextWithTemplateImage(text: string, imageDataUrl: string) {
+  const conversationId = props.conversation?.id;
+  if (!conversationId) {
+    toast.error('Chưa chọn hội thoại');
+    return;
+  }
+  try {
+    const file = dataUrlToFile(imageDataUrl, `template-${Date.now()}.jpg`);
+    const fd = new FormData();
+    fd.append('caption', text);
+    fd.append('files', file, file.name);
+    await api.post(`/conversations/${conversationId}/attachments`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    toast.success(`Đã gửi ảnh + text`);
+    emit('refresh-thread');
+  } catch (err: any) {
+    const detail = err?.response?.data?.error || err?.message || 'Upload thất bại';
+    toast.error(`Lỗi gửi ảnh + text: ${detail}`);
+    console.error('[send-template-image]', err);
+    // KHÔNG clear inputText — để user sửa lại.
+    throw err;
+  }
+}
+
 // ── Send ────────────────────────────────────────────────────────────────────
 function handleSend() {
   if (showTemplatePopup.value) { showTemplatePopup.value = false; return; }
@@ -2904,6 +2944,23 @@ function handleSend() {
   const styles = Array.isArray(rich.styles) && rich.styles.length > 0 ? rich.styles : undefined;
   // 2026-06-24: @mention thành viên nhóm — chỉ gửi khi có mention (group thread).
   const mentions = Array.isArray(rich.mentions) && rich.mentions.length > 0 ? rich.mentions : undefined;
+
+  // 2026-07-24 phase-2: có ảnh từ mẫu → gửi multipart với caption (text + ảnh trong 1 message Zalo).
+  const pendingImage = pendingTemplateImage.value;
+  if (pendingImage && !props.editingMessage) {
+    // Gửi async, KHÔNG emit('send') thường — đã bao gồm text trong multipart.
+    sendTextWithTemplateImage(textToSend, pendingImage)
+      .then(() => {
+        inputText.value = '';
+        editorRef.value?.clear();
+        pendingTemplateImage.value = null;
+        emit('cancel-reply-edit');
+      })
+      .catch(() => {
+        // Lỗi — giữ nguyên text + ảnh trong editor để user retry.
+      });
+    return;
+  }
 
   if (props.editingMessage) {
     emit('edit-message', props.editingMessage.id, textToSend);

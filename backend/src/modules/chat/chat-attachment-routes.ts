@@ -185,7 +185,8 @@ export async function chatAttachmentRoutes(app: FastifyInstance) {
               zaloMsgId,
               contentType: 'image',
               content: JSON.stringify({ href: mirror.url, thumb: mirror.url, size: mirror.size }),
-              metadata: { sender: { kind: 'user_crm', name: userFullName } },
+              // 2026-07-24 phase-2: lưu caption (text đi kèm ảnh) vào metadata để FE render.
+              metadata: { sender: { kind: 'user_crm', name: userFullName }, caption: caption || undefined },
               sentVia: 'user',
             });
             created.push(msg);
@@ -224,7 +225,8 @@ export async function chatAttachmentRoutes(app: FastifyInstance) {
               zaloMsgId,
               contentType: 'video',
               content: JSON.stringify({ href: mirror.url, thumb: thumbUrl, thumbUrl, thumbnail: thumbUrl, size: mirror.size }),
-              metadata: { sender: { kind: 'user_crm', name: userFullName } },
+              // 2026-07-24 phase-2: lưu caption cho video.
+              metadata: { sender: { kind: 'user_crm', name: userFullName }, caption: caption || undefined },
               sentVia: 'user',
             });
             created.push(msg);
@@ -248,7 +250,8 @@ export async function chatAttachmentRoutes(app: FastifyInstance) {
               zaloMsgId,
               contentType: 'video',
               content: JSON.stringify({ href: mirror.url, thumb: thumbUrl, thumbUrl, thumbnail: thumbUrl, size: mirror.size }),
-              metadata: { sender: { kind: 'user_crm', name: userFullName } },
+              // 2026-07-24 phase-2: lưu caption cho video (fallback path).
+              metadata: { sender: { kind: 'user_crm', name: userFullName }, caption: caption || undefined },
               sentVia: 'user',
             });
             created.push(msg);
@@ -276,6 +279,8 @@ export async function chatAttachmentRoutes(app: FastifyInstance) {
             zaloMsgId,
             contentType: 'file',
             content: JSON.stringify({ href: mirror.url, name: f.filename, size: mirror.size, mime: f.mimeType }),
+            // 2026-07-24 phase-2: lưu caption cho file (ít dùng nhưng nhất quán).
+            metadata: { sender: { kind: 'user_crm', name: userFullName }, caption: caption || undefined },
           });
           created.push(msg);
         }

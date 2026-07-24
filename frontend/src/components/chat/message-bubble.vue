@@ -710,8 +710,16 @@ const messageCaption = computed<string>(() => {
   const ct = props.message.contentType;
   if (!['image', 'video', 'sticker', 'gif', 'file'].includes(ct)) return '';
   const p = safeParse(props.message.content);
-  if (!p) return '';
-  const candidates = [p.title, p.caption, p.description, p.text];
+  // 2026-07-24 phase-2: caption cũng có thể nằm trong metadata.caption (khi gửi qua endpoint
+  // /conversations/:id/attachments với caption field — BE lưu vào metadata.caption).
+  const meta = props.message.metadata as { caption?: string } | null | undefined;
+  const candidates = [
+    meta?.caption, // 2026-07-24 phase-2: caption từ attachments endpoint (mẫu tin có ảnh)
+    p?.title,
+    p?.caption,
+    p?.description,
+    p?.text,
+  ];
   for (const c of candidates) {
     if (typeof c !== 'string') continue;
     const t = c.trim();

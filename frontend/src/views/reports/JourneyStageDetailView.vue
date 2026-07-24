@@ -58,7 +58,7 @@ const loading = ref(true);
 
 onMounted(async () => {
   try {
-    const res = await api.get(`/api/v1/reports/journey/${stage.value}`);
+    const res = await api.get(`/reports/journey/${stage.value}`);
     contacts.value = res.data.contacts ?? [];
     label.value = res.data.label ?? stage.value;
     totalCount.value = res.data.totalCount ?? 0;

@@ -64,7 +64,7 @@ const maxDropoff = computed(() =>
 
 onMounted(async () => {
   try {
-    const res = await api.get(`/api/v1/reports/journey?days=${props.days}`);
+    const res = await api.get(`/reports/journey?days=${props.days}`);
     stages.value = res.data.stages ?? [];
     totalContacts.value = res.data.totalContacts ?? 0;
   } catch (e) {

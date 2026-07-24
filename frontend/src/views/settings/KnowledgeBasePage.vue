@@ -9,7 +9,15 @@
   Xem openspec/changes/add-knowledge-base-and-chat-drag/.
 -->
 <template>
-  <div class="kb-page">
+  <div class="kb-page" @dragover.prevent="onDragOver" @dragleave="onDragLeave" @drop.prevent="onDrop">
+    <!-- Global drag-drop overlay -->
+    <div v-if="isDragging" class="kb-drop-overlay">
+      <div class="kb-drop-zone">
+        <v-icon icon="mdi-file-upload-outline" size="48" color="primary" />
+        <div class="kb-drop-title">Thả file để thêm vào kho tri thức</div>
+        <div class="kb-drop-hint">.md (markdown) — tạo tài liệu mới · Ảnh — tạo bộ sưu tập</div>
+      </div>
+    </div>
     <header class="kb-header">
       <div class="kb-title-row">
         <div>
@@ -25,6 +33,7 @@
           <v-icon icon="mdi-plus" size="16" />
           Thêm tài liệu
         </button>
+        <input ref="fileInputRef" type="file" accept=".md,.txt,image/*" multiple style="display:none" @change="onFileInputChange" />
       </div>
 
       <div class="kb-toolbar">
@@ -168,6 +177,20 @@
               />
               <span class="kb-hint">{{ editing.text.length }} / 200000 ký tự — sẽ tự chia nhỏ ~500–800 ký tự mỗi chunk.</span>
             </label>
+            <div class="kb-content-actions">
+              <input
+                ref="mdImageInputRef"
+                type="file"
+                accept="image/*"
+                style="display:none"
+                @change="onMdImageChange"
+              />
+              <button type="button" class="kb-btn kb-btn--ghost" @click="pickMdImage" :disabled="mdUploading">
+                <v-icon icon="mdi-image-plus" size="14" />
+                <span v-if="mdUploading">Đang upload…</span>
+                <span v-else>Chèn ảnh vào markdown</span>
+              </button>
+            </div>
           </template>
 
           <template v-else>
@@ -242,6 +265,7 @@ import {
   listKbDocs, getKbDoc, createKbDoc, updateKbDoc, deleteKbDoc, reembedKbDoc,
   type KnowledgeDocKind, type KnowledgeDocListItem, type KnowledgeDocDetail,
 } from '@/api/knowledge';
+import { uploadMedia } from '@/api/media';
 
 const docs = ref<KnowledgeDocListItem[]>([]);
 const total = ref(0);
@@ -251,6 +275,11 @@ const reembeddingId = ref<string | null>(null);
 const search = ref('');
 const kindFilter = ref<'' | KnowledgeDocKind>('');
 const includeInactive = ref(false);
+const isDragging = ref(false);
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const mdImageInputRef = ref<HTMLInputElement | null>(null);
+const mdUploading = ref(false);
+let dragCounter = 0;
 
 const editing = ref<null | {
   id?: string;
@@ -262,12 +291,103 @@ const editing = ref<null | {
   mediaAssetIdsRaw: string;
   faqQ: string;
   faqA: string;
+  pendingImageFiles: File[];
 }>(null);
 
 const previewDoc = ref<KnowledgeDocDetail | null>(null);
 const toast = ref<{ kind: 'ok' | 'err'; text: string } | null>(null);
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function onDragOver(e: DragEvent) {
+  dragCounter++;
+  isDragging.value = true;
+  e.dataTransfer!.dropEffect = 'copy';
+}
+
+function onDragLeave() {
+  dragCounter--;
+  if (dragCounter <= 0) { dragCounter = 0; isDragging.value = false; }
+}
+
+async function onDrop(e: DragEvent) {
+  dragCounter = 0;
+  isDragging.value = false;
+  const files = e.dataTransfer?.files;
+  if (!files?.length) return;
+  await processFiles(Array.from(files));
+}
+
+async function processFiles(files: File[]) {
+  const mdFiles = files.filter((f) => f.name.endsWith('.md') || f.name.endsWith('.txt'));
+  const imgFiles = files.filter((f) => f.type.startsWith('image/'));
+  const otherFiles = files.filter((f) => !mdFiles.includes(f) && !imgFiles.includes(f));
+  if (otherFiles.length) {
+    showToast('err', `Không hỗ trợ file: ${otherFiles.map(f => f.name).join(', ')}`);
+  }
+  // Markdown files → create new doc or prefilled form
+  for (const f of mdFiles) {
+    try {
+      const text = await f.text();
+      openCreate();
+      editing.value!.title = f.name.replace(/\.(md|txt)$/, '');
+      editing.value!.kind = 'markdown';
+      editing.value!.text = text;
+      showToast('ok', `Đã đọc "${f.name}" — nhấn Lưu để tạo`);
+    } catch {
+      showToast('err', `Không đọc được file: ${f.name}`);
+    }
+  }
+  // Image files → upload to media library and add to media_collection
+  if (imgFiles.length) {
+    showToast('ok', `Đang upload ${imgFiles.length} ảnh lên media library…`);
+    try {
+      const res = await uploadMedia(imgFiles, { visibility: 'public' });
+      const ids = res.assets.map((a) => a.id);
+      openCreate();
+      editing.value!.title = imgFiles.length === 1 ? imgFiles[0].name.replace(/\.[^.]+$/, '') : 'Bộ sưu tập ảnh';
+      editing.value!.kind = 'media_collection';
+      editing.value!.mediaAssetIdsRaw = ids.join(', ');
+      editing.value!.pendingImageFiles = [];
+      showToast('ok', `Đã upload ${ids.length} ảnh — nhấn Lưu để tạo bộ sưu tập`);
+    } catch (err: any) {
+      showToast('err', 'Upload ảnh thất bại: ' + (err?.response?.data?.error || err.message));
+    }
+  }
+}
+function onFileInputChange(e: Event) {
+  const input = e.target as HTMLInputElement;
+  if (input.files?.length) {
+    processFiles(Array.from(input.files));
+    input.value = '';
+  }
+}
+
+function pickMdImage() {
+  mdImageInputRef.value?.click();
+}
+
+async function onMdImageChange(e: Event) {
+  const input = e.target as HTMLInputElement;
+  if (!input.files?.length || !editing.value) return;
+  mdUploading.value = true;
+  try {
+    const res = await uploadMedia([input.files[0]], { visibility: 'public' });
+    const id = res.assets[0]?.id;
+    if (!id) throw new Error('Upload trả về rỗng');
+    // Use assetID as media reference; embed as media marker
+    const media = res.assets[0];
+    const imageUrl = `/files/${id}`;
+    const markdown = `![ảnh ${media?.name || id}](${imageUrl})`;
+    editing.value.text = (editing.value.text || '') + '\n' + markdown + ' ';
+    showToast('ok', 'Đã chèn ảnh vào markdown');
+  } catch (err: any) {
+    showToast('err', 'Upload ảnh thất bại: ' + (err?.response?.data?.error || err.message));
+  } finally {
+    mdUploading.value = false;
+    input.value = '';
+  }
+}
 
 function showToast(kind: 'ok' | 'err', text: string) {
   toast.value = { kind, text };
@@ -301,7 +421,7 @@ async function reload() {
 function openCreate() {
   editing.value = {
     title: '', kind: 'markdown', text: '', tagsRaw: '', sourceUrl: '',
-    mediaAssetIdsRaw: '', faqQ: '', faqA: '',
+    mediaAssetIdsRaw: '', faqQ: '', faqA: '', pendingImageFiles: [],
   };
 }
 function openEdit(doc: KnowledgeDocListItem) {
@@ -333,6 +453,7 @@ function openEdit(doc: KnowledgeDocListItem) {
       mediaAssetIdsRaw: mediaRaw,
       faqQ,
       faqA,
+      pendingImageFiles: [],
     };
   }).catch(() => showToast('err', 'Không tải được nội dung tài liệu'));
 }
@@ -369,6 +490,19 @@ async function save() {
         tags,
         sourceUrl: editing.value.sourceUrl.trim() || undefined,
       };
+    } else if (editing.value.kind === 'faq') {
+      const faqPayload = {
+        title: editing.value.title.trim(),
+        kind: 'faq' as const,
+        faq: { question: editing.value.faqQ.trim(), answer: editing.value.faqA.trim() },
+        tags,
+        sourceUrl: editing.value.sourceUrl.trim() || undefined,
+      };
+      if (editing.value.id) {
+        res = await updateKbDoc(editing.value.id, faqPayload);
+      } else {
+        res = await createKbDoc(faqPayload);
+      }
     } else if (editing.value.kind === 'markdown') {
       payload = {
         title: editing.value.title.trim(),
@@ -389,7 +523,7 @@ async function save() {
     }
     let res: { ok: boolean; chunks: number; partial?: boolean; warning?: string };
     if (editing.value.id) {
-      res = await updateKbDoc(editing.value.id, payload);
+      res = await updateKbDoc(editing.value.id, payload as Parameters<typeof updateKbDoc>[1]);
     } else {
       res = await createKbDoc(payload as Parameters<typeof createKbDoc>[0]);
     }
@@ -548,5 +682,29 @@ onBeforeUnmount(() => {
   .kb-page { padding: 16px; }
   .kb-title-row { flex-direction: column; }
   .kb-modal { max-height: 90vh; }
+}
+
+.kb-drop-overlay {
+  position: fixed; inset: 0; z-index: 9998;
+  background: rgba(240,246,255,0.92);
+  backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center;
+}
+.kb-drop-zone {
+  border: 3px dashed #1565C0;
+  border-radius: 16px;
+  padding: 48px 64px;
+  text-align: center;
+  background: white;
+  box-shadow: 0 8px 32px rgba(21,101,192,0.15);
+}
+.kb-drop-title { font-size: 20px; font-weight: 700; color: #1F2D3D; margin: 16px 0 8px; }
+.kb-drop-hint { font-size: 13px; color: #6B7280; }
+
+.kb-content-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: -8px;
+  margin-bottom: 12px;
 }
 </style>

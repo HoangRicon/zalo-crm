@@ -36,7 +36,7 @@ type CreateDocBody = {
   faq?: { question: string; answer: string };
 };
 
-type UpdateDocBody = Partial<Pick<CreateDocBody, 'title' | 'text' | 'mediaAssetIds' | 'tags' | 'sourceUrl'>> & {
+type UpdateDocBody = Partial<Pick<CreateDocBody, 'title' | 'text' | 'mediaAssetIds' | 'tags' | 'sourceUrl' | 'faq'>> & {
   isActive?: boolean;
 };
 
@@ -246,15 +246,26 @@ export async function knowledgeRoutes(app: FastifyInstance) {
       if (typeof body.isActive === 'boolean') data.isActive = body.isActive;
 
       // Nếu content đổi → rebuild chunks
-      const contentChanged = (typeof body.text === 'string' && body.text.trim().length > 0) ||
-        (Array.isArray(body.mediaAssetIds) && JSON.stringify(body.mediaAssetIds) !== JSON.stringify(existing.mediaAssetIds));
+      const contentChanged =
+        existing.kind === 'faq'
+          ? (body.faq?.question !== undefined || body.faq?.answer !== undefined)
+          : (typeof body.text === 'string' && body.text.trim().length > 0) ||
+            (Array.isArray(body.mediaAssetIds) && JSON.stringify(body.mediaAssetIds) !== JSON.stringify(existing.mediaAssetIds));
 
       await prisma.knowledgeDoc.update({ where: { id }, data });
 
       if (contentChanged) {
-        const text = body.text && body.text.trim().length > 0
-          ? body.text
-          : `Bộ sưu tập gồm ${(body.mediaAssetIds || existing.mediaAssetIds).length} ảnh liên quan đến "${data.title || existing.title}".`;
+        let text = '';
+        if (existing.kind === 'faq') {
+          if (!body.faq?.question?.trim() || !body.faq?.answer?.trim()) {
+            return reply.status(400).send({ error: 'FAQ cần question + answer' });
+          }
+          text = `## Câu hỏi: ${body.faq.question.trim()}\n\n${body.faq.answer.trim()}`;
+        } else {
+          text = body.text && body.text.trim().length > 0
+            ? body.text
+            : `Bộ sưu tập gồm ${(body.mediaAssetIds || existing.mediaAssetIds).length} ảnh liên quan đến "${data.title || existing.title}".`;
+        }
         if (text.length > 200_000) return reply.status(400).send({ error: 'text quá dài' });
         try {
           const result = await embedAndPersistDoc(id, orgId, text);
@@ -340,12 +351,12 @@ export async function knowledgeRoutes(app: FastifyInstance) {
       }
 
       if (chunks.length === 0) {
-        return {
+        return reply.send({
           answer: 'Không tìm thấy thông tin liên quan trong kho tri thức. Hãy bổ sung tài liệu hoặc thử diễn đạt khác.',
           sources: [],
           images: [],
           source: 'no_match',
-        };
+        });
       }
 
       const apiKey = await getProviderApiKey(orgId, cfg.provider);

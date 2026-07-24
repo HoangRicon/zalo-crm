@@ -56,7 +56,7 @@ const router = useRouter();
 
 onMounted(async () => {
   try {
-    const res = await api.get('/api/v1/churn/top', { params: { limit: 10 } });
+    const res = await api.get('/churn/top', { params: { limit: 10 } });
     rows.value = res.data.rows ?? [];
   } catch (e) {
     console.error('[ChurnRiskWidget] load error', e);

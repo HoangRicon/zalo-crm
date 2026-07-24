@@ -86,6 +86,15 @@
 
         <!-- 6 KPI -->
         <div class="at-kpi-grid">
+          <!-- FIX 2026-07-23: Skeleton loading state -->
+          <template v-if="isLoadingMe">
+            <div v-for="i in 6" :key="i" class="at-kpi-tile at-kpi-skeleton">
+              <div class="skeleton-line skeleton-line--sm"></div>
+              <div class="skeleton-line skeleton-line--lg"></div>
+              <div class="skeleton-line skeleton-line--sm"></div>
+            </div>
+          </template>
+          <template v-else>
           <div class="at-kpi-tile at-kpi--clickable at-kpi--danger" @click="goToInbox">
             <div class="at-kpi-label"><Inbox :size="13" :stroke-width="2" /> Chưa rep</div>
             <div class="at-kpi-value"><PrivVal :split="me?.kpi.unreplied" /></div>
@@ -116,6 +125,7 @@
             <div class="at-kpi-value">{{ me?.kpi.closedThisMonth ?? 0 }}</div>
             <div class="at-kpi-sub">Khách đã chốt</div>
           </div>
+          </template>
         </div>
 
         <div class="at-dash-grid-2">
@@ -478,6 +488,9 @@ const hub = useDashboardActionHub();
 const me = computed(() => hub.me.value);
 const team = computed(() => hub.team.value);
 const system = computed(() => hub.system.value);
+const isLoadingMe = computed(() => hub.loadingMe.value);
+const isLoadingTeam = computed(() => hub.loadingTeam.value);
+const isLoadingSystem = computed(() => hub.loadingSystem.value);
 
 // Tab state — mặc định 'me'. Sale chỉ có me (thanh tab ẩn).
 const activeTab = ref<'me' | 'team' | 'system'>('me');
@@ -707,4 +720,20 @@ function onOutsideClick(e: MouseEvent) {
 .at-urgent-meta { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
 .at-urgent-nick { font-size: 10.5px; color: var(--at-hint, #94a3b8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .at-statchip--sm { font-size: 10px; padding: 1px 7px; }
+
+/* FIX 2026-07-23: Skeleton loading animation */
+.skeleton-line {
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  border-radius: 4px;
+  margin: 4px 0;
+}
+.skeleton-line--sm { height: 10px; width: 60%; }
+.skeleton-line--lg { height: 18px; width: 80%; }
+.at-kpi-skeleton { opacity: 0.6; }
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
 </style>

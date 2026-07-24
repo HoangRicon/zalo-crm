@@ -62,9 +62,9 @@ const trendCanvas = ref<HTMLCanvasElement | null>(null);
 onMounted(async () => {
   try {
     const [trendRes, signalsRes, medianRes] = await Promise.all([
-      api.get(`/api/v1/contacts/${props.contactId}/scoring/trend?days=30`),
-      api.get(`/api/v1/contacts/${props.contactId}/scoring/signals?limit=10`),
-      api.get(`/api/v1/contacts/${props.contactId}/scoring/median`),
+      api.get(`/contacts/${props.contactId}/scoring/trend?days=30`),
+      api.get(`/contacts/${props.contactId}/scoring/signals?limit=10`),
+      api.get(`/contacts/${props.contactId}/scoring/median`),
     ]);
     trendPoints.value = trendRes.data.points ?? [];
     currentScore.value = trendRes.data.currentScore ?? 0;

@@ -67,7 +67,7 @@ async function runRefresh(): Promise<string> {
   const rt = localStorage.getItem('refreshToken');
   if (!rt) throw new Error('no refresh token');
   // axios "trần" (không qua interceptor) tránh đệ quy refresh.
-  const res = await axios.post('/api/v1/auth/refresh', { refreshToken: rt });
+  const res = await axios.post('/auth/refresh', { refreshToken: rt });
   localStorage.setItem('token', res.data.token);
   localStorage.setItem('refreshToken', res.data.refreshToken);
   return res.data.token as string;

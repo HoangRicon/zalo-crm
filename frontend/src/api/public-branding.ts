@@ -22,7 +22,7 @@ export interface OrgBranding {
 
 export async function fetchPublicBranding(): Promise<OrgBranding | null> {
   try {
-    const res = await axios.get<OrgBranding>('/api/v1/public/org-branding', { timeout: 5000 });
+    const res = await axios.get<OrgBranding>('/public/org-branding', { timeout: 5000 });
     return res.data;
   } catch {
     return null;

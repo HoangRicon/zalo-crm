@@ -56,7 +56,7 @@ export async function optInToPush(): Promise<{ ok: boolean; reason?: string }> {
   });
   const subJson = sub.toJSON();
   if (!subJson.endpoint || !subJson.keys) return { ok: false, reason: 'invalid_subscription' };
-  await api.post('/api/v1/push/subscribe', {
+  await api.post('/push/subscribe', {
     endpoint: subJson.endpoint,
     keys: subJson.keys,
   });
@@ -74,7 +74,7 @@ export async function optOutOfPush(): Promise<void> {
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.getSubscription();
     if (sub) {
-      await api.delete('/api/v1/push/subscribe', { data: { endpoint: sub.endpoint } });
+      await api.delete('/push/subscribe', { data: { endpoint: sub.endpoint } });
       await sub.unsubscribe();
     }
     support.value = 'opted-out';

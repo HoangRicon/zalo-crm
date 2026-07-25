@@ -40,6 +40,8 @@ import { chatRoutes } from './modules/chat/chat-routes.js';
 import { folderRoutes } from './modules/chat/folder-routes.js';
 import { presetRoutes } from './modules/chat/preset-routes.js';
 import { chatAttachmentRoutes } from './modules/chat/chat-attachment-routes.js';
+import { aiAutoReplyRoutes } from './modules/chat/ai-auto-reply-routes.js';
+import { startAiAutoReplyWorker, stopAiAutoReplyWorker } from './modules/chat/ai-auto-reply-service.js';
 import { deviceRoutes } from './modules/devices/device-routes.js';
 import { configRoutes } from './modules/config/config-routes.js';
 import { mediaRoutes } from './modules/media/media-routes.js';
@@ -267,6 +269,7 @@ async function bootstrap() {
   await app.register(folderRoutes);
   await app.register(presetRoutes);
   await app.register(chatAttachmentRoutes);
+  await app.register(aiAutoReplyRoutes);
   await app.register(deviceRoutes);
   await app.register(configRoutes);
   await app.register(mediaRoutes);
@@ -482,6 +485,8 @@ async function bootstrap() {
       // Sprint 3 R9 2026-07-21: Churn Risk cron nightly 02:00 local.
       const { startChurnCron } = await import('./modules/churn-risk/churn-cron.js');
       startChurnCron();
+      // 2026-07-26: AI auto-reply worker (tick 20s, delay 30s, cooldown 60s).
+      startAiAutoReplyWorker();
     }
     // Group info refresh periodic (mỗi 6h) — làm tươi avatar/tên/sĩ số nhóm chống
     // URL Zalo CDN hết hạn (nhóm im lặng lâu không có message để cập nhật thụ động).

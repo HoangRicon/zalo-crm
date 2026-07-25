@@ -1,7 +1,8 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <!-- Copyright (C) 2026 Nguyễn Tiến Lộc -->
 <template>
-  <div class="airtable-scope dh-v4">
+  <MobileDashboardView v-if="isMobile" />
+  <div v-else class="airtable-scope dh-v4">
     <!-- ── Role-tab strip — chỉ hiện khi có quyền >1 tab (sale ẩn) ── -->
     <div v-if="hub.hasTeamSection.value || hub.hasSystemSection.value" class="at-roletabs">
       <button class="at-roletab" :class="{ 'is-active': activeTab === 'me' }" @click="activeTab = 'me'">
@@ -467,6 +468,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, h, type Component } from 'vue';
 import { useAuthStore } from '@/stores/auth';
+// 2026-07-26: Mobile-friendly dashboard (cards nhỏ + quick actions)
+import MobileDashboardView from '@/views/MobileDashboardView.vue';
+import { useMobile } from '@/composables/use-mobile';
+const { isMobile } = useMobile();
 // Sprint 3 R9 2026-07-21: Churn Risk Widget
 import ChurnRiskWidget from '@/components/dashboard/ChurnRiskWidget.vue';
 import { useRouter } from 'vue-router';

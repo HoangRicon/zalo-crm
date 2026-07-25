@@ -801,6 +801,13 @@ model Conversation {
   // 2026-06-11 ? X?a m?m h?i tho?i t? c?t 2 (anh ch?t: ?n ?i, kh?i ph?c ???c).
   // Khi != null ? m?i query list/count lo?i tr?. KH?NG x?a Message v?t l?.
   deletedAt         DateTime? @map("deleted_at")
+  // 2026-07-26: AI auto-reply per-conversation toggle.
+  // BẬT → worker check mỗi 30s: nếu khách gửi tin và nick chưa reply
+  // trong 30s thì gọi AI suggest + tự gửi qua Zalo SDK.
+  // TẮT (mặc định) → chỉ gợi ý cho sale, không tự gửi.
+  aiAutoReplyEnabled Boolean   @default(false) @map("ai_auto_reply_enabled")
+  // Lần cuối worker AI auto-reply của conv này (cooldown tránh spam)
+  aiAutoReplyLastAt  DateTime? @map("ai_auto_reply_last_at")
   createdAt         DateTime  @default(now()) @map("created_at")
 
   org           Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)

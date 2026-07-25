@@ -284,8 +284,39 @@
             </label>
           </div>
           <div class="task-note">
-            <strong>Mô tả:</strong> Sale nhấn "Cảm xúc" trong tab AI → AI phân tích toàn bộ hội thoại → trả về nhãn (Tích cực / Trung tính / Tiêu cực)
-            kèm điểm tin cậy và lý do ngắn bằng <strong>tiếng Việt</strong>.
+          <strong>Mô tả:</strong> Sale nhấn "Cảm xúc" trong tab AI → AI phân tích toàn bộ hội thoại → trả về nhãn (Tích cực / Trung tính / Tiêu cực)
+          kèm điểm tin cậy và lý do ngắn bằng <strong>tiếng Việt</strong>.
+        </div>
+        </div>
+
+        <!-- 2026-07-26: Embedding Provider cho Kho tri thức (RAG-lite).
+             Anthropic/Gemini/Qwen/Kimi không hỗ trợ embedding → user chọn 'openai' (mặc định)
+             hoặc 'custom' (self-hosted OpenAI-compatible proxy) để chạy KB retrieval. -->
+        <div class="task-card">
+          <div class="task-header">
+            <div class="task-info">
+              <span class="task-icon">📚</span>
+              <div>
+                <div class="task-name">Embedding Provider (Kho tri thức)</div>
+                <div class="task-desc">
+                  Provider dùng để tạo vector embedding cho KB.
+                  Anthropic/Gemini/Qwen/Kimi không hỗ trợ — chọn OpenAI hoặc Custom.
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="task-note">
+            <strong>Cấu hình:</strong>
+            <select v-model="taskConfig.embeddingProvider" class="ai-select">
+              <option value="openai">OpenAI (mặc định — cần API key OpenAI)</option>
+              <option value="custom">Custom Endpoint (dùng baseUrl + key của custom provider)</option>
+            </select>
+            <div v-if="taskConfig.embeddingProvider === 'custom' && !customProvider.hasKey" class="ai-warn">
+              ⚠ Custom Provider chưa có API key. Vào tab <strong>Kết nối Provider → Custom Endpoint</strong> để nhập key.
+            </div>
+            <div v-if="taskConfig.embeddingProvider === 'openai' && !providerKeyStatus.openai" class="ai-warn">
+              ⚠ OpenAI chưa có API key. Vào tab <strong>Kết nối Provider → OpenAI</strong> để nhập key.
+            </div>
           </div>
         </div>
 
@@ -474,6 +505,10 @@ interface TaskConfig {
   contentBlockEnabled: boolean;
   campaignPlannerEnabled: boolean;
   formatRichEnabled: boolean;
+  // 2026-07-26: Provider cho embedding (RAG-lite KB retrieval).
+  // 'openai' | 'custom'. Nếu không set → fallback openai (trừ khi org chỉ có custom key
+  // — auto-fallback đã thêm ở backend).
+  embeddingProvider?: 'openai' | 'custom';
 }
 
 const loading = ref(true);
@@ -520,10 +555,15 @@ const taskConfig = ref<TaskConfig>({
   contentBlockEnabled: true,
   campaignPlannerEnabled: true,
   formatRichEnabled: true,
+  embeddingProvider: 'openai',
 });
 const savingTaskConfig = ref(false);
 const saveTaskMsg = ref('');
 const saveTaskOk = ref(false);
+
+// 2026-07-26: trạng thái key của từng provider (dùng cho cảnh báo khi chọn embedding).
+// Lấy từ endpoint /ai/providers đã có (xem ai-routes.ts line 89).
+const providerKeyStatus = ref<Record<string, boolean>>({});
 
 const lowQuota = computed(() => {
   if (!usage.value || !config.value) return false;
@@ -538,13 +578,16 @@ const usagePercent = computed(() => {
 async function load() {
   loading.value = true;
   try {
-    const [cfgRes, usageRes] = await Promise.all([
+    const [cfgRes, usageRes, providersRes] = await Promise.all([
       api.get<AiAssistantConfig>('/ai/assistant-config'),
       api.get<AiUsage>('/ai/usage'),
+      api.get<Array<{ id: string; hasKey: boolean }>>('/ai/providers'),
     ]);
     config.value = cfgRes.data;
     usage.value = usageRes.data;
     selectedProvider.value = cfgRes.data.provider || 'anthropic';
+    // 2026-07-26: gom hasKey của từng provider để cảnh báo khi chọn embedding.
+    providerKeyStatus.value = Object.fromEntries(providersRes.data.map((p) => [p.id, p.hasKey]));
     await loadCustomProvider();
     await loadTaskConfig();
   } catch (e: any) {
@@ -963,6 +1006,32 @@ onMounted(() => { load(); });
 }
 .task-note strong { color: #1e40af; }
 .task-note code { font-family: 'JetBrains Mono', monospace; background: #e2e8f0; padding: 1px 4px; border-radius: 3px; font-size: 11px; }
+
+/* 2026-07-26: select + warn cho embedding provider */
+.ai-select {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  margin-top: 8px;
+  padding: 7px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: white;
+  font-size: 13px;
+  color: #1f2937;
+  cursor: pointer;
+}
+.ai-select:focus { outline: 2px solid #3b82f6; outline-offset: 1px; }
+.ai-warn {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+  color: #c2410c;
+  font-size: 12px;
+  line-height: 1.5;
+}
 
 /* Usage */
 .usage-grid {

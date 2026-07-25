@@ -173,9 +173,22 @@ export async function embedBatch(texts: string[], providerOverride?: string): Pr
 /** Helper: resolve API key theo orgId thật (an toàn hơn '__global__'). */
 async function resolveEmbedder(orgId: string, provider: string) {
   const apiKey = await resolveProviderApiKey(orgId, provider);
-  if (!apiKey) throw new Error(`No API key for embedding provider '${provider}' (org ${orgId}). Configure in AI Settings.`);
-  const baseUrl = await getProviderBaseUrl(orgId, provider);
-  return { apiKey, baseUrl: baseUrl.replace(/\/+$/, '') };
+  if (apiKey) {
+    const baseUrl = await getProviderBaseUrl(orgId, provider);
+    return { apiKey, baseUrl: baseUrl.replace(/\/+$/, '') };
+  }
+  // 2026-07-26: fallback nếu provider user chọn chưa có key — thử 'custom' (nhiều org
+  // dùng Custom Endpoint cho cả chat lẫn embedding, ví dụ self-hosted OpenAI-compat proxy).
+  // Không fallback cho openai (anthropic/gemini/qwen/kimi đã chặn ở caller).
+  if (provider === 'openai') {
+    const customKey = await resolveProviderApiKey(orgId, 'custom').catch(() => '');
+    if (customKey) {
+      const customUrl = await getProviderBaseUrl(orgId, 'custom');
+      logger.info('[embed] openai no key → fallback to custom (org=%s)', orgId);
+      return { apiKey: customKey, baseUrl: customUrl.replace(/\/+$/, '') };
+    }
+  }
+  throw new Error(`No API key for embedding provider '${provider}' (org ${orgId}). Configure in AI Settings.`);
 }
 
 /** Embed với provider theo org + AiConfig.aiTaskConfig.embeddingProvider. */

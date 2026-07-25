@@ -553,6 +553,8 @@ export async function aiRoutes(app: FastifyInstance) {
             contentBlockEnabled?: boolean;
             campaignPlannerEnabled?: boolean;
             formatRichEnabled?: boolean;
+            // 2026-07-26: provider dùng cho embedding (RAG-lite KB).
+            embeddingProvider?: 'openai' | 'custom';
           };
         };
         // Validate regex
@@ -562,6 +564,12 @@ export async function aiRoutes(app: FastifyInstance) {
           } catch {
             return reply.status(400).send({ error: 'Regex không hợp lệ' });
           }
+        }
+        // 2026-07-26: validate embeddingProvider.
+        if (body.aiTaskConfig?.embeddingProvider &&
+            body.aiTaskConfig.embeddingProvider !== 'openai' &&
+            body.aiTaskConfig.embeddingProvider !== 'custom') {
+          return reply.status(400).send({ error: 'embeddingProvider phải là "openai" hoặc "custom"' });
         }
         const updated = await (prisma.aiConfig as any).update({
           where: { orgId: request.user!.orgId },

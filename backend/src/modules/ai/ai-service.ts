@@ -43,11 +43,25 @@ export async function getProviderApiKey(orgId: string, provider: string) {
   return resolveProviderApiKey(orgId, provider);
 }
 
+/* Resolve model mặc định cho 1 provider từ env, theo thứ tự ưu tiên:
+ *   1) config.aiDefaultModel                       (global — áp dụng mọi provider)
+ *   2) config.customDefaultModel (CHỈ khi provider='custom') (per-provider fallback
+ *      vì custom model thường khác hẳn model của vendor chuẩn)
+ * Trả về '' nếu cả 2 đều rỗng → caller sẽ fail-fast ở providers/custom.ts
+ * với error "AI provider model not configured". */
+function resolveDefaultModel(provider: string): string {
+  const globalDefault = config.aiDefaultModel?.trim();
+  if (globalDefault) return globalDefault;
+  if (provider === 'custom') return config.customDefaultModel?.trim() || '';
+  return '';
+}
+
 export async function getAiConfig(orgId: string) {
   let aiConfig = await prisma.aiConfig.findUnique({ where: { orgId } });
   if (!aiConfig) {
+    const provider = config.aiDefaultProvider;
     aiConfig = await prisma.aiConfig.create({
-      data: { orgId, provider: config.aiDefaultProvider, model: config.aiDefaultModel, maxDaily: 500, enabled: true },
+      data: { orgId, provider, model: resolveDefaultModel(provider), maxDaily: 500, enabled: true },
     });
   }
   const availableProviders = await getAvailableProviders(orgId);
@@ -55,12 +69,13 @@ export async function getAiConfig(orgId: string) {
 }
 
 export async function updateAiConfig(orgId: string, input: { provider?: string; model?: string; maxDaily?: number; enabled?: boolean }) {
+  const provider = input.provider || config.aiDefaultProvider;
   return prisma.aiConfig.upsert({
     where: { orgId },
     create: {
       orgId,
-      provider: input.provider || config.aiDefaultProvider,
-      model: input.model || config.aiDefaultModel,
+      provider,
+      model: input.model || resolveDefaultModel(provider),
       maxDaily: input.maxDaily ?? 500,
       enabled: input.enabled ?? true,
     },

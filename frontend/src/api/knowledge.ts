@@ -91,6 +91,14 @@ export async function reembedKbDoc(id: string): Promise<{ ok: boolean; chunks: n
 }
 
 export async function kbQa(question: string): Promise<KbQaResponse> {
-  const { data } = await api.post('/knowledge/qa', { question });
-  return data;
+  try {
+    const { data } = await api.post('/knowledge/qa', { question });
+    return data;
+  } catch (err: any) {
+    // 2026-07-26: propagate BE error code để FE show action phù hợp (mở AI Settings, ...).
+    const body = err?.response?.data;
+    const code = body?.code as string | undefined;
+    if (code) err.code = code;
+    throw err;
+  }
 }

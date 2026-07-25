@@ -50,7 +50,13 @@
         </div>
         <div v-else-if="error" class="kbq-error">
           <v-icon icon="mdi-alert-circle-outline" size="20" />
-          {{ error }}
+          <div class="kbq-error-content">
+            <div>{{ error }}</div>
+            <!-- 2026-07-26: nếu org chưa cấu hình embedding key → nút mở AI Settings -->
+            <button v-if="errorCode === 'NO_EMBED_KEY'" class="kbq-error-action" @click="openAiSettings">
+              <v-icon size="14" icon="mdi-cog-outline" /> Mở AI Settings
+            </button>
+          </div>
         </div>
         <template v-else>
           <div class="kbq-answer">
@@ -123,6 +129,7 @@ const images = ref<string[]>([]);
 const noMatch = ref(false);
 const loading = ref(false);
 const error = ref('');
+const errorCode = ref(''); // 2026-07-26: mã lỗi từ BE (vd 'NO_EMBED_KEY')
 const inputEl = ref<HTMLTextAreaElement | null>(null);
 
 const suggestions = [
@@ -135,6 +142,12 @@ function close() {
   emit('update:modelValue', false);
 }
 
+function openAiSettings() {
+  // 2026-07-26: mở settings AI, đóng panel hỏi KB.
+  close();
+  void window.location.assign('/settings/crm/ai-assistant');
+}
+
 function ask(s: string) {
   question.value = s;
   submit();
@@ -145,6 +158,7 @@ async function submit() {
   if (!q || loading.value) return;
   loading.value = true;
   error.value = '';
+  errorCode.value = '';
   answer.value = '';
   sources.value = [];
   images.value = [];
@@ -160,6 +174,8 @@ async function submit() {
       images.value = res.images;
     }
   } catch (e: any) {
+    // 2026-07-26: pull thêm `code` từ BE để UI có thể show action (vd NO_EMBED_KEY → mở Settings).
+    errorCode.value = e?.code || e?.response?.data?.code || '';
     error.value = e?.response?.data?.error || 'Tra cứu thất bại';
   } finally {
     loading.value = false;
@@ -222,7 +238,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 .kbq-empty { text-align: center; color: #97A0AC; padding: 32px 12px; font-size: 13.5px; }
 .kbq-empty .v-icon { margin-bottom: 8px; }
 .kbq-loading { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 28px; color: #6B7280; font-size: 13.5px; }
-.kbq-error { display: flex; align-items: center; gap: 8px; padding: 14px; background: #FEF2F2; color: #B91C1C; border-radius: 8px; font-size: 13px; }
+.kbq-error { display: flex; align-items: flex-start; gap: 8px; padding: 14px; background: #FEF2F2; color: #B91C1C; border-radius: 8px; font-size: 13px; }
+.kbq-error-content { flex: 1; }
+.kbq-error-action {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #0077b6, #00b4ff);
+  color: white;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+}
+.kbq-error-action:hover { opacity: 0.92; }
 
 .kbq-answer { background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
 .kbq-answer-label { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #0369A1; margin-bottom: 6px; }

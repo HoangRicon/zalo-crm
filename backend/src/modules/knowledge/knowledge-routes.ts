@@ -346,8 +346,24 @@ export async function knowledgeRoutes(app: FastifyInstance) {
       try {
         chunks = await retrieveTopK(orgId, question, 6);
       } catch (embedErr) {
-        logger.warn('[kb-qa] retrieveTopK fail: %s', (embedErr as Error).message);
-        return reply.status(400).send({ error: (embedErr as Error).message || 'Không retrieve được KB' });
+        // 2026-07-26: phân loại lỗi để FE show action phù hợp thay vì để raw stack trace.
+        const msg = (embedErr as Error).message || 'Không retrieve được KB';
+        if (msg.includes('No API key for embedding')) {
+          logger.warn('[kb-qa] %s', msg);
+          return reply.status(400).send({
+            error: 'Chưa cấu hình API key cho embedding provider. Mở AI Settings → Provider để nhập OpenAI key.',
+            code: 'NO_EMBED_KEY',
+          });
+        }
+        if (msg.includes('không hỗ trợ')) {
+          logger.warn('[kb-qa] %s', msg);
+          return reply.status(400).send({
+            error: msg,
+            code: 'EMBED_PROVIDER_UNSUPPORTED',
+          });
+        }
+        logger.warn('[kb-qa] retrieveTopK fail: %s', msg);
+        return reply.status(400).send({ error: msg, code: 'KB_RETRIEVE_FAILED' });
       }
 
       if (chunks.length === 0) {

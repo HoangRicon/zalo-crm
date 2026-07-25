@@ -362,6 +362,21 @@ export async function knowledgeRoutes(app: FastifyInstance) {
             code: 'EMBED_PROVIDER_UNSUPPORTED',
           });
         }
+        // 2026-07-26: lỗi mạng (ECONNREFUSED khi baseUrl=localhost trong container,
+        // ENOTFOUND khi DNS fail, timeout khi endpoint chậm) → code EMBED_NETWORK_ERROR
+        if (
+          msg.includes('Connection refused') ||
+          msg.includes('Không kết nối') ||
+          msg.includes('Không resolve') ||
+          msg.includes('Lỗi mạng') ||
+          msg.includes('timeout')
+        ) {
+          logger.warn('[kb-qa] %s', msg);
+          return reply.status(400).send({
+            error: msg,
+            code: 'EMBED_NETWORK_ERROR',
+          });
+        }
         logger.warn('[kb-qa] retrieveTopK fail: %s', msg);
         return reply.status(400).send({ error: msg, code: 'KB_RETRIEVE_FAILED' });
       }

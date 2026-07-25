@@ -201,14 +201,41 @@ export async function embedForOrg(orgId: string, texts: string[]): Promise<numbe
   }
   const { apiKey, baseUrl } = await resolveEmbedder(orgId, provider);
   const url = `${baseUrl}/v1/embeddings`;
+  // 2026-07-26: cảnh báo URL chứa 'localhost' — khi app chạy trong Docker container,
+  // 'localhost' trỏ về container nó chứ không phải host. Cần dùng 'host.docker.internal'
+  // (Docker Desktop) hoặc IP host. Phát hiện ở đây để báo user trước khi fetch fail.
+  if (/localhost|127\.0\.0\.1|0\.0\.0\.0/.test(baseUrl)) {
+    logger.warn('[embed] baseUrl chứa localhost/loopback (%s) — nếu app chạy trong Docker, đổi sang host.docker.internal hoặc IP host', baseUrl);
+  }
   const all: number[][] = [];
   for (let i = 0; i < texts.length; i += EMBED_BATCH_SIZE) {
     const batch = texts.slice(i, i + EMBED_BATCH_SIZE);
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ input: batch, model: EMBEDDING_MODEL, encoding_format: 'float' }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: batch, model: EMBEDDING_MODEL, encoding_format: 'float' }),
+        // 2026-07-26: timeout 30s cho fetch (Node default không có).
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch (netErr) {
+      // 2026-07-26: phân loại lỗi mạng để user biết phải làm gì.
+      const msg = (netErr as Error).message || 'fetch failed';
+      const cause = (netErr as any)?.cause?.code || '';
+      const isContainer = process.env.NODE_ENV === 'production' || process.env.DOCKER === '1';
+      const isLocalhost = /localhost|127\.0\.0\.1|0\.0\.0\.0/.test(baseUrl);
+      if (cause === 'ECONNREFUSED' && isContainer && isLocalhost) {
+        throw new Error(`Không kết nối được embedding endpoint tại ${baseUrl}. App đang chạy trong Docker — 'localhost' trỏ về container. Đổi sang 'host.docker.internal' hoặc IP host.`);
+      }
+      if (cause === 'ECONNREFUSED') {
+        throw new Error(`Connection refused tới ${url}. Kiểm tra custom endpoint có đang chạy và baseUrl đúng.`);
+      }
+      if (cause === 'ENOTFOUND') {
+        throw new Error(`Không resolve được host trong ${url}. Kiểm tra baseUrl.`);
+      }
+      throw new Error(`Lỗi mạng khi gọi embedding endpoint: ${msg}`);
+    }
     if (!res.ok) {
       const body = await res.text();
       throw new Error(`Embedding API ${res.status}: ${body.slice(0, 200)}`);

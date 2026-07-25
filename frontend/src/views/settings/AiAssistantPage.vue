@@ -67,6 +67,14 @@
             <label class="field-label">Base URL</label>
             <input v-model="customProvider.baseUrl" class="regex-input" placeholder="http://localhost:20128/v1" spellcheck="false" />
             <div class="field-hint">URL endpoint OpenAI-compatible. VD: <code>http://host.docker.internal:20128/v1</code> cho vLLM/Ollama</div>
+            <!-- 2026-07-26: cảnh báo khi baseUrl chứa localhost/loopback — nếu app chạy trong
+                 Docker container, 'localhost' trỏ về container (không phải host). Dùng
+                 host.docker.internal (Docker Desktop) hoặc IP host. -->
+            <div v-if="isLocalhostUrl" class="ai-warn" style="margin-top: 8px;">
+              ⚠ Base URL chứa <code>localhost/127.0.0.1</code>. Nếu app chạy trong Docker,
+              <code>localhost</code> trỏ về container, không phải host. Đổi sang
+              <code>host.docker.internal</code> hoặc IP host (ví dụ <code>192.168.1.x</code>).
+            </div>
           </div>
 
           <div v-if="selectedProvider === 'custom'" class="field-group">
@@ -569,6 +577,9 @@ const lowQuota = computed(() => {
   if (!usage.value || !config.value) return false;
   return usage.value.remaining < config.value.maxDaily * 0.2;
 });
+
+// 2026-07-26: cảnh báo khi baseUrl chứa localhost/loopback (không chạy được từ Docker container).
+const isLocalhostUrl = computed(() => /localhost|127\.0\.0\.1|0\.0\.0\.0/.test(customProvider.value.baseUrl || ''));
 
 const usagePercent = computed(() => {
   if (!usage.value || !config.value) return 0;

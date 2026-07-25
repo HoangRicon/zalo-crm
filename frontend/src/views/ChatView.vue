@@ -22,6 +22,7 @@
     <!-- draggable: sidebar ↔ conv list (2026-07-24 enable lại) -->
     <div
       class="smax-divider"
+      :class="{ 'is-dragging': dragState?.target === 'sidebar' }"
       role="separator"
       aria-orientation="vertical"
       :aria-valuenow="widths.sidebar"
@@ -104,6 +105,7 @@
     <!-- draggable: conv list ↔ message thread (2026-07-24 enable lại) -->
     <div
       class="smax-divider"
+      :class="{ 'is-dragging': dragState?.target === 'conv' }"
       role="separator"
       aria-orientation="vertical"
       :aria-valuenow="widths.conv"
@@ -155,6 +157,7 @@
     <div
       v-if="showContactPanel && selectedConv?.contact"
       class="smax-divider"
+      :class="{ 'is-dragging': dragState?.target === 'thread' }"
       role="separator"
       aria-orientation="vertical"
       :aria-valuenow="widths.info"
@@ -345,6 +348,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('pointermove', onDragMove);
   window.addEventListener('pointerup', onDragEnd);
   window.addEventListener('pointercancel', onDragEnd);
+  window.addEventListener('keydown', onKeyWhileDrag);
 }
 
 // ESC trong khi đang kéo → revert về giá trị start.
@@ -367,9 +371,6 @@ function onKeyWhileDrag(e: KeyboardEvent) {
     dragState.value = { ...s, startX: s.startX + dx };
   }
 }
-if (typeof window !== 'undefined') {
-  window.addEventListener('keydown', onKeyWhileDrag);
-}
 
 function resetColumn(target: DragTarget) {
   const key: keyof ColWidths = target === 'thread' ? 'info' : target;
@@ -384,60 +385,6 @@ onBeforeUnmount(() => {
     window.removeEventListener('keydown', onKeyWhileDrag);
   }
   onDragEnd();
-});
-
-function onMouseMove(e: MouseEvent) {
-  if (!dragState.value || !chatGridEl.value) return;
-  const { target, startX } = dragState.value;
-  const dx = e.clientX - startX;
-  if (Math.abs(dx) < 3) return;
-
-  const sidebar = chatGridEl.value.querySelector('.filter-sidebar') as HTMLElement | null;
-  const convCol = chatGridEl.value.querySelector('.smax-conv-col') as HTMLElement | null;
-  const msgCol = chatGridEl.value.querySelector('.smax-msg-col') as HTMLElement | null;
-  const infoCol = chatGridEl.value.querySelector('.smax-info-col') as HTMLElement | null;
-  if (!sidebar || !convCol || !msgCol) return;
-
-  const MIN_PX = 200;
-  const MAX_PX = 500;
-
-  if (target === 'sidebar') {
-    // Dragging sidebar↔conv divider: sidebar rộng ← kéo phải
-    const curSidebar = parseInt(getComputedStyle(sidebar).flexBasis) || 220;
-    const newSidebar = Math.min(MAX_PX, Math.max(MIN_PX, curSidebar + dx));
-    sidebar.style.flexBasis = newSidebar + 'px';
-    const curConv = parseInt(getComputedStyle(convCol).flexBasis) || 290;
-    convCol.style.flexBasis = Math.max(MIN_PX, curConv - dx) + 'px';
-  } else if (target === 'conv') {
-    // Dragging conv↔msg divider: conv rộng ← kéo phải
-    const curConv = parseInt(getComputedStyle(convCol).flexBasis) || 290;
-    const newConv = Math.min(MAX_PX, Math.max(MIN_PX, curConv + dx));
-    convCol.style.flexBasis = newConv + 'px';
-    const curMsg = parseInt(getComputedStyle(msgCol).flexBasis) || 380;
-    msgCol.style.flexBasis = Math.max(MIN_PX, curMsg - dx) + 'px';
-  } else {
-    // Dragging msg↔info divider: msg rộng ← kéo phải
-    const curMsg = parseInt(getComputedStyle(msgCol).flexBasis) || 380;
-    msgCol.style.flexBasis = Math.max(MIN_PX, curMsg + dx) + 'px';
-    if (infoCol) {
-      const curInfo = parseInt(getComputedStyle(infoCol).flexBasis) || 350;
-      infoCol.style.flexBasis = Math.max(MIN_PX, curInfo - dx) + 'px';
-    }
-  }
-  dragState.value!.startX = e.clientX;
-}
-
-function onMouseUp() {
-  dragState.value = null;
-}
-
-onMounted(() => {
-  window.addEventListener('mousemove', onMouseMove);
-  window.addEventListener('mouseup', onMouseUp);
-});
-onUnmounted(() => {
-  window.removeEventListener('mousemove', onMouseMove);
-  window.removeEventListener('mouseup', onMouseUp);
 });
 
 const {
@@ -1103,7 +1050,8 @@ watch(searchQuery, () => {
   display: block;
 }
 
-/* Draggable dividers — 2026-07-24 enable lại + polish UX */
+/* Draggable dividers — 2026-07-24 enable lại + polish UX
+   2026-07-26: thêm class .is-dragging để highlight rõ vạch đang kéo. */
 .smax-divider {
   width: 6px;
   flex-shrink: 0;
@@ -1115,6 +1063,7 @@ watch(searchQuery, () => {
   /* Vùng hitbox rộng hơn vùng nhìn: dễ kích chuột */
   margin-left: -3px;
   margin-right: -3px;
+  touch-action: none; /* 2026-07-26: tắt touch-scroll để không bị cuộn trang khi kéo */
 }
 .smax-divider::before {
   /* Visual line — mỏng 1px ở giữa, hiện rõ khi hover/focus */
@@ -1130,6 +1079,27 @@ watch(searchQuery, () => {
 .smax-divider:focus::before,
 .smax-divider:focus-visible::before {
   background: var(--smax-primary, #5E6AD2);
+}
+/* Khi đang kéo → highlight vạch + vạch đậm hơn, transition tắt để không giật */
+.smax-divider.is-dragging::before,
+.smax-divider.is-dragging::after {
+  background: var(--smax-primary, #5E6AD2);
+  transition: none;
+}
+.smax-divider.is-dragging::after {
+  /* Grip dots — 2 chấm tròn dọc, hiện ở giữa khi kéo */
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 28px;
+  margin-left: -2px;
+  margin-top: -14px;
+  background-image: radial-gradient(circle at center, var(--smax-primary, #5E6AD2) 1px, transparent 1.5px);
+  background-size: 4px 8px;
+  background-repeat: repeat-y;
+  pointer-events: none;
 }
 .smax-divider:focus-visible {
   /* a11y focus ring đậm hơn */

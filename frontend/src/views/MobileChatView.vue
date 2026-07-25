@@ -121,6 +121,95 @@
         @refresh-thread="fetchMessages(selectedConvId)"
         class="mc-thread-body"
       />
+
+      <!-- FAB: mở panel AI (bottom sheet) — mobile thay cho cột info desktop -->
+      <button class="mc-ai-fab" aria-label="Mở panel AI" @click="openAiSheet">
+        <v-icon size="20" color="white">mdi-robot-outline</v-icon>
+      </button>
+
+      <!-- AI Bottom Sheet — kéo từ dưới lên -->
+      <transition name="sheet-slide">
+        <div v-if="showAiSheet" class="mc-ai-sheet-mask" @click.self="closeAiSheet">
+          <div
+            class="mc-ai-sheet"
+            :style="{ height: sheetHeight + 'px' }"
+            @touchstart.passive="onSheetTouchStart"
+            @touchmove.passive="onSheetTouchMove"
+            @touchend="onSheetTouchEnd"
+            role="dialog"
+            aria-label="Panel AI"
+          >
+            <div class="mc-ai-handle">
+              <div class="mc-ai-handle-bar" />
+            </div>
+            <div class="mc-ai-sheet-header">
+              <div class="d-flex align-center gap-2">
+                <v-icon color="primary">mdi-robot-outline</v-icon>
+                <strong>AI — Hành động đề xuất</strong>
+              </div>
+              <v-btn icon variant="text" size="small" @click="closeAiSheet" aria-label="Đóng">
+                <v-icon>mdi-close</v-icon>
+              </v-btn>
+            </div>
+            <div class="mc-ai-sheet-body">
+              <!-- AI Suggest (gợi ý reply) -->
+              <div class="mc-ai-section">
+                <div class="mc-ai-section-head">
+                  <v-icon size="16" color="warning">mdi-creation</v-icon>
+                  <span>Gợi ý reply</span>
+                  <v-spacer />
+                  <button class="mc-ai-refresh" :disabled="aiSuggestionLoading" @click="generateAiSuggestion">
+                    <v-icon size="14">mdi-refresh</v-icon>
+                  </button>
+                </div>
+                <div v-if="aiSuggestionLoading" class="mc-ai-loading">
+                  <v-progress-circular indeterminate size="14" width="2" color="primary" />
+                  <span>Đang soạn…</span>
+                </div>
+                <div v-else-if="aiSuggestion" class="mc-ai-suggest">
+                  {{ aiSuggestion }}
+                </div>
+                <div v-else-if="aiSuggestionError" class="mc-ai-error">
+                  ⚠ {{ aiSuggestionError }}
+                </div>
+                <div v-else class="mc-ai-empty">
+                  Bấm ↻ để AI soạn reply.
+                </div>
+                <button
+                  v-if="aiSuggestion"
+                  class="mc-ai-use"
+                  @click="useAiSuggestion"
+                >
+                  <v-icon size="14">mdi-arrow-down</v-icon> Chèn vào ô nhập
+                </button>
+              </div>
+
+              <!-- AI Auto-reply toggle -->
+              <div class="mc-ai-section">
+                <div class="mc-ai-toggle-row">
+                  <div>
+                    <div class="mc-ai-toggle-title">Tự động trả lời</div>
+                    <div class="mc-ai-toggle-sub">
+                      AI sẽ gửi reply sau 30s nếu bạn chưa phản hồi.
+                    </div>
+                  </div>
+                  <v-switch
+                    :model-value="autoReplyEnabled"
+                    :loading="autoReplyLoading"
+                    color="primary"
+                    hide-details
+                    inset
+                    @update:model-value="onAutoReplyChange"
+                  />
+                </div>
+                <div v-if="autoReplyEnabled" class="mc-ai-toggle-hint">
+                  ✓ Đang bật — cooldown 60s giữa 2 lần gửi tự động.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </transition>
     </div>
   </div>
 </template>
@@ -261,6 +350,88 @@ watch(selectedConvId, async (id) => {
   else autoReplyEnabled.value = false;
 });
 
+// ── AI Bottom Sheet (mobile) ───────────────────────────────────────────────
+const showAiSheet = ref(false);
+const SHEET_MIN = 200;
+const SHEET_MAX_PCT = 0.85; // tối đa 85% viewport height
+const SHEET_DEFAULT_PCT = 0.55;
+const sheetHeight = ref(0);
+function computeSheetHeight(pct: number): number {
+  return Math.round(typeof window !== 'undefined' ? window.innerHeight * pct : 400);
+}
+function openAiSheet() {
+  sheetHeight.value = computeSheetHeight(SHEET_DEFAULT_PCT);
+  showAiSheet.value = true;
+}
+function closeAiSheet() {
+  showAiSheet.value = false;
+}
+
+// Drag-to-resize sheet (touch + mouse)
+let sheetDragStartY = 0;
+let sheetDragStartHeight = 0;
+let sheetDragging = false;
+function onSheetTouchStart(e: TouchEvent) {
+  if (e.touches.length !== 1) return;
+  sheetDragging = true;
+  sheetDragStartY = e.touches[0].clientY;
+  sheetDragStartHeight = sheetHeight.value;
+}
+function onSheetTouchMove(e: TouchEvent) {
+  if (!sheetDragging || e.touches.length !== 1) return;
+  const dy = sheetDragStartY - e.touches[0].clientY;
+  const max = computeSheetHeight(SHEET_MAX_PCT);
+  const next = Math.max(SHEET_MIN, Math.min(max, sheetDragStartHeight + dy));
+  sheetHeight.value = next;
+}
+function onSheetTouchEnd() {
+  if (!sheetDragging) return;
+  sheetDragging = false;
+  // Snap: gần min → snap về min (đóng); gần max → snap về max; ngược lại default
+  const max = computeSheetHeight(SHEET_MAX_PCT);
+  const def = computeSheetHeight(SHEET_DEFAULT_PCT);
+  if (sheetHeight.value < SHEET_MIN + 60) {
+    closeAiSheet();
+  } else if (sheetHeight.value > max - 80) {
+    sheetHeight.value = max;
+  } else {
+    sheetHeight.value = def;
+  }
+}
+
+function useAiSuggestion() {
+  // Chèn text AI vào input của MessageThread.
+  // MessageThread có prop `ai-suggestion` nhưng không có input public API,
+  // nên giải pháp đơn giản: copy vào clipboard và hiện toast hướng dẫn.
+  if (!aiSuggestion.value) return;
+  try {
+    void navigator.clipboard.writeText(aiSuggestion.value);
+    toast.success('Đã copy — dán vào ô nhập');
+  } catch {
+    toast.info(aiSuggestion.value);
+  }
+}
+
+async function onAutoReplyChange(v: boolean | null | undefined) {
+  if (!selectedConvId.value || autoReplyLoading.value) return;
+  const next = !!v;
+  autoReplyLoading.value = true;
+  const prev = autoReplyEnabled.value;
+  autoReplyEnabled.value = next;
+  try {
+    const res = await api.patch(`/conversations/${selectedConvId.value}/ai-auto-reply`, { enabled: next });
+    autoReplyEnabled.value = !!res.data.enabled;
+    toast[next ? 'success' : 'info'](
+      next ? 'AI tự reply: BẬT' : 'AI tự reply: TẮT',
+    );
+  } catch (err: any) {
+    autoReplyEnabled.value = prev;
+    toast.error('Không thể cập nhật');
+  } finally {
+    autoReplyLoading.value = false;
+  }
+}
+
 let searchTimeout: ReturnType<typeof setTimeout>;
 watch(searchQuery, () => {
   clearTimeout(searchTimeout);
@@ -392,4 +563,131 @@ onUnmounted(() => {
   border: 2px solid white;
 }
 .mc-thread-body { flex: 1; min-height: 0; }
+
+/* FAB mở AI panel */
+.mc-ai-fab {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a855f7, #6366f1);
+  color: white;
+  border: none;
+  box-shadow: 0 4px 14px rgba(168,85,247,0.4);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 10;
+}
+.mc-ai-fab:active { transform: scale(0.96); }
+
+/* Bottom sheet mask */
+.mc-ai-sheet-mask {
+  position: fixed; inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 1000;
+  display: flex; align-items: flex-end;
+  touch-action: none;
+}
+.mc-ai-sheet {
+  width: 100%;
+  background: white;
+  border-radius: 18px 18px 0 0;
+  display: flex; flex-direction: column;
+  box-shadow: 0 -8px 30px rgba(0,0,0,0.18);
+  min-height: 200px;
+  max-height: 90vh;
+  overflow: hidden;
+  transition: height 0.18s ease;
+}
+.mc-ai-handle {
+  padding: 10px 0 6px;
+  display: flex; justify-content: center;
+  cursor: grab;
+}
+.mc-ai-handle-bar {
+  width: 40px; height: 4px;
+  background: #d1d5db; border-radius: 4px;
+}
+.mc-ai-sheet-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 16px 12px;
+  border-bottom: 1px solid #eef0f4;
+  font-size: 14px;
+}
+.mc-ai-sheet-body {
+  flex: 1; overflow-y: auto;
+  padding: 12px 16px 24px;
+}
+.mc-ai-section {
+  background: #f7f8fb;
+  border: 1px solid #eef0f4;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.mc-ai-section-head {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600; color: #6b7280;
+  text-transform: uppercase; letter-spacing: 0.4px;
+  margin-bottom: 8px;
+}
+.mc-ai-refresh {
+  width: 24px; height: 24px;
+  border-radius: 50%; border: none;
+  background: white;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.mc-ai-loading, .mc-ai-empty {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: #6b7280; padding: 4px 0;
+}
+.mc-ai-error { font-size: 13px; color: #b91c1c; }
+.mc-ai-suggest {
+  font-size: 14px; color: #0c2233;
+  background: white;
+  border-radius: 10px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+.mc-ai-use {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #0077b6, #00b4ff);
+  color: white;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+}
+.mc-ai-toggle-row {
+  display: flex; align-items: center; gap: 12px;
+}
+.mc-ai-toggle-title { font-size: 14px; font-weight: 600; color: #0c2233; }
+.mc-ai-toggle-sub { font-size: 11px; color: #6b7280; margin-top: 2px; line-height: 1.3; }
+.mc-ai-toggle-hint {
+  font-size: 12px; color: #16a34a; margin-top: 8px;
+  padding: 6px 10px; background: #ecfdf5;
+  border-radius: 8px;
+}
+
+/* Slide transition */
+.sheet-slide-enter-active, .sheet-slide-leave-active {
+  transition: opacity 0.2s;
+}
+.sheet-slide-enter-from, .sheet-slide-leave-to {
+  opacity: 0;
+}
+.sheet-slide-enter-active .mc-ai-sheet,
+.sheet-slide-leave-active .mc-ai-sheet {
+  transition: transform 0.25s ease;
+}
+.sheet-slide-enter-from .mc-ai-sheet,
+.sheet-slide-leave-to .mc-ai-sheet {
+  transform: translateY(100%);
+}
 </style>

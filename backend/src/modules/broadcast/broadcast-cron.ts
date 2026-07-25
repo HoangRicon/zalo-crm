@@ -160,11 +160,15 @@ async function processRun(run: RunRow, io: Server | null): Promise<void> {
   }
   const { entryId, phone, name } = recipient;
 
+  // 2026-07-26 fix: pick sender nick (multi-acc round-robin). Resolve TRƯỚC
+  // claim để mọi rate-limit/check dùng đúng nick sẽ gửi.
+  const senderNickId = pickSenderNickForEntry(job, entryId);
+
   // P5 (D1) — pre-check fail-CLOSED cho luồng gửi hàng loạt: limiter (Redis/Postgres) lỗi
   // → HOÃN, không xả tin vượt trần lúc hạ tầng sự cố. Thao tác tay của sale đi thẳng
   // zaloOps.exec (fail-open) nên không bị chặn oan. Pre-check KHÔNG ghi nhận (recordSend
   // vẫn do exec làm sau khi gửi thật).
-  const gate = await zaloRateLimiter.checkLimits(job.zaloAccountId, 'message', { failClosed: true });
+  const gate = await zaloRateLimiter.checkLimits(senderNickId, 'message', { failClosed: true });
   if (!gate.allowed) {
     logger.warn(`[broadcast-cron] run=${run.id} hoãn tick: ${gate.reason ?? 'rate limited'}`);
     return;
@@ -180,7 +184,7 @@ async function processRun(run: RunRow, io: Server | null): Promise<void> {
     // Sprint 2 R4: gán abGroupId nếu job là A/B.
     const abGroupId = job.abMode === 'ab_split' ? assignAbGroup(job.abVariantCount, entryId, run.id) : null;
     const item = await prisma.broadcastRunItem.create({
-      data: { runId: run.id, orgId: run.orgId, entryId, phone: phone ?? '', name, status: 'sending', abGroupId },
+      data: { runId: run.id, orgId: run.orgId, entryId, phone: phone ?? '', name, status: 'sending', abGroupId, zaloAccountId: senderNickId },
       select: { id: true },
     });
     itemId = item.id;
@@ -190,11 +194,35 @@ async function processRun(run: RunRow, io: Server | null): Promise<void> {
   }
 
   try {
-    // 1. Resolve UID theo nick gửi (UID Zalo là per-nick)
+    // 1. Resolve UID theo nick gửi (UID Zalo là per-nick).
+    //    Ưu tiên Friend table đã match (cache) → nhanh, không tốn findUser quota.
+    //    Fallback findUser chỉ khi chưa có cache.
     let uid: string | null = recipient.uid;
     if (!uid && phone) {
-      const user = await zaloOps.findUser(job.zaloAccountId, phone);
-      uid = (user as any)?.uid ?? null;
+      // Thử Friend table trước (match theo nick gửi + phoneNormalized)
+      const noPlus = phone.replace(/^\+/, '');
+      const friend = await prisma.friend.findFirst({
+        where: { zaloAccountId: senderNickId, contact: { phoneNormalized: noPlus }, friendshipStatus: 'accepted' },
+        select: { zaloUidInNick: true },
+      });
+      uid = friend?.zaloUidInNick ?? null;
+      // Fallback Zalo SDK findUser — tốn quota friend_lookup (15 burst / 1000 ngày)
+      if (!uid) {
+        try {
+          const user = await zaloOps.findUser(senderNickId, phone);
+          uid = (user as any)?.uid ?? null;
+        } catch (sdkErr: any) {
+          // 2026-07-26: Zalo error 225 = "Sender not friend of user" → SKIP thay vì FAIL
+          // để không spam counter fail. SĐT này chưa được nick này kết bạn → chờ Mục tiêu.
+          const code = sdkErr?.code;
+          if (code === 225 || code === '225') {
+            await finalizeItem(itemId, run, 'skipped', null, 'nick_chua_ket_ban_voi_so_nay');
+            logger.info(`[broadcast-cron] run=${run.id} entry=${entryId} skip: nick chưa kết bạn với SĐT này (Zalo 225)`);
+            return;
+          }
+          throw sdkErr;
+        }
+      }
     }
     if (!uid) {
       await finalizeItem(itemId, run, 'skipped', null, 'khong_tim_thay_uid');
@@ -210,18 +238,18 @@ async function processRun(run: RunRow, io: Server | null): Promise<void> {
     if (content.imageUrl) {
       const media = await downloadMediaToTemp({ url: content.imageUrl }, 'image/jpeg');
       try {
-        await zaloOps.sendImage(job.zaloAccountId, uid, 0, [media.path], io, text);
+        await zaloOps.sendImage(senderNickId, uid, 0, [media.path], io, text);
       } finally {
         await media.cleanup().catch(() => {});
       }
     } else {
-      await zaloOps.sendMessage(job.zaloAccountId, uid, 0, { msg: text }, io);
+      await zaloOps.sendMessage(senderNickId, uid, 0, { msg: text }, io);
     }
     await finalizeItem(itemId, run, 'sent', uid, null);
     if (content.blockId) {
       await prisma.contentBlock.update({ where: { id: content.blockId }, data: { usageCount: { increment: 1 } } }).catch(() => {});
     }
-    logger.info(`[broadcast-cron] run=${run.id} sent → ${phone ?? uid}`);
+    logger.info(`[broadcast-cron] run=${run.id} sent via nick=${senderNickId} → ${phone ?? uid}`);
   } catch (err: any) {
     if (err instanceof ZaloOpError && (err.code === 'RATE_LIMITED' || err.code === 'NOT_CONNECTED')) {
       // Nick chạm trần hoặc mất kết nối — NHẢ claim để tick sau thử lại recipient này
@@ -230,11 +258,50 @@ async function processRun(run: RunRow, io: Server | null): Promise<void> {
       logger.warn(`[broadcast-cron] run=${run.id} paused by nick: ${err.code}`);
       return;
     }
-    await finalizeItem(itemId, run, 'failed', null, String(err?.message ?? err).slice(0, 500));
+    // 2026-07-26: detect Zalo 225 từ sendMessage (trường hợp Friend table có UID
+    // nhưng thực tế nick này unfriended khách) → skip thay vì fail spam.
+    const msg = String(err?.message ?? err);
+    const zaloCode = err?.cause?.code ?? err?.code;
+    if (msg.includes('225') || zaloCode === 225) {
+      await finalizeItem(itemId, run, 'skipped', null, 'nick_chua_ket_ban_voi_so_nay');
+      logger.info(`[broadcast-cron] run=${run.id} entry=${entryId} skip: nick chưa kết bạn (Zalo 225)`);
+      return;
+    }
+    await finalizeItem(itemId, run, 'failed', null, msg.slice(0, 500));
   }
 }
 
 type Recipient = { entryId: string; phone: string | null; name: string | null; uid: string | null };
+
+/**
+ * 2026-07-26 fix: Multi-account round-robin.
+ * Resolve nick Zalo gửi cho 1 recipient dựa trên job.zaloAccountIds (Json array)
+ * và entryId hash (sticky — cùng entry luôn gán cùng nick để tránh
+ * gửi trùng nếu run retry).
+ *  - 1 nick   → dùng zaloAccountId (backward compat).
+ *  - sendMode='round_robin' + N nick → hash(entryId) % N.
+ *  - sendMode='duplicate' → luôn dùng nick[0] (giữ semantics cũ; admin dùng cẩn thận
+ *    vì mỗi tin gửi trên N nick = N quota).
+ */
+export function pickSenderNickForEntry(
+  job: { zaloAccountId: string; zaloAccountIds: unknown; sendMode: string | null },
+  entryId: string,
+): string {
+  const ids = Array.isArray(job.zaloAccountIds)
+    ? (job.zaloAccountIds as string[]).filter((x): x is string => typeof x === 'string')
+    : [];
+  if (ids.length === 0) return job.zaloAccountId;
+  if ((job.sendMode ?? 'duplicate') === 'round_robin') {
+    // FNV-1a 32-bit — sticky per entryId, đủ rải đều
+    let hash = 0x811c9dc5;
+    for (let i = 0; i < entryId.length; i++) {
+      hash ^= entryId.charCodeAt(i);
+      hash = Math.imul(hash, 0x01000193);
+    }
+    return ids[(hash >>> 0) % ids.length];
+  }
+  return ids[0] ?? job.zaloAccountId;
+}
 
 /** Nguồn Tệp khách hàng: entry SĐT có Zalo, UID resolve theo nick (findUser nếu khác nick). */
 async function pickListRecipient(

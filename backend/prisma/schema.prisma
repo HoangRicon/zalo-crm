@@ -4342,6 +4342,9 @@ model BroadcastRunItem {
   phone   String?
   name    String?
   zaloUid String? @map("zalo_uid")
+  // 2026-07-26: nick thực sự gửi (multi-acc round-robin). Nullable cho backward-compat
+  // với item cũ chỉ dùng job.zaloAccountId.
+  zaloAccountId String? @map("zalo_account_id")
 
   status    String // 'sending' (claim P4) | 'sent' | 'failed' | 'skipped'
   error     String?

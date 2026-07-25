@@ -111,22 +111,48 @@
 
         <label class="f-label">Nick Zalo gửi (chọn 1 hoặc nhiều)</label>
         <div class="f-nick-list">
-          <label v-for="n in nicks" :key="n.id" class="f-nick-item" :class="{ disabled: n.status !== 'connected' }">
+          <label
+            v-for="n in nicks"
+            :key="n.id"
+            class="f-nick-item"
+            :class="{
+              disabled: n.status !== 'connected' || n.broadcastBlacklisted,
+            }"
+            :title="nickTooltip(n)"
+          >
             <input
               type="checkbox"
               :checked="form.zaloAccountIds.includes(n.id)"
-              :disabled="n.status !== 'connected'"
+              :disabled="n.status !== 'connected' || n.broadcastBlacklisted"
               @change="toggleNick(n.id)"
             />
-            <span>{{ n.displayName || n.phone }} {{ n.status !== 'connected' ? '(mất kết nối)' : '' }}</span>
+            <span class="f-nick-info">
+              <span class="f-nick-name">
+                {{ n.displayName || n.phone }}
+                <v-icon v-if="n.status !== 'connected'" size="14" color="error" class="ml-1">mdi-link-off</v-icon>
+                <v-icon v-else-if="n.broadcastBlacklisted" size="14" color="warning" class="ml-1">mdi-block-helper</v-icon>
+                <v-icon v-else size="14" color="success" class="ml-1">mdi-check-circle</v-icon>
+              </span>
+              <span class="f-nick-meta">
+                <span v-if="n.broadcastBlacklisted" class="text-warning">
+                  <v-icon size="11">mdi-block-helper</v-icon> blacklist{{ n.blacklistReason ? ': ' + n.blacklistReason : '' }}
+                </span>
+                <span v-else-if="n.status !== 'connected'" class="text-error">mất kết nối</span>
+                <span v-else>
+                  <v-icon size="11">mdi-account-heart-outline</v-icon>
+                  {{ (n.friendCount ?? 0).toLocaleString('vi-VN') }} bạn bè
+                </span>
+              </span>
+            </span>
           </label>
         </div>
-        <div v-if="form.zaloAccountIds.length > 1" class="f-note" style="margin-top:6px">
+        <!-- 2026-07-26: tóm tắt lựa chọn multi-acc — anh Tuấn feedback "chưa kỹ về số acc gửi" -->
+        <div v-if="form.zaloAccountIds.length > 1" class="f-note" style="margin-top:8px">
           <v-icon size="14">mdi-information-outline</v-icon>
-          Chọn chế độ gửi:
+          Đã chọn <b>{{ form.zaloAccountIds.length }}</b> nick — chế độ:
           <select v-model="form.sendMode" class="f-input-sm" style="margin-left:6px">
-            <option value="duplicate">Tất cả nick gửi cùng tin (duplicate)</option>
-            <option value="round_robin">Mỗi nick gửi một phần (round-robin)</option>
+            <option value="round_robin">Mỗi nick gửi một phần (round-robin) ★</option>
+            <option value="duplicate">Tất cả nick gửi cùng tin (duplicate — tốn quota gấp {{ form.zaloAccountIds.length }}×)</option>
           </select>
         </div>
 
@@ -214,9 +240,10 @@
         </template>
 
         <!-- Sprint 2 R4 2026-07-21: A/B test toggle + Preview button -->
+        <!-- 2026-07-26 fix: enable preview khi có (text OR content blocks selected) + đã chọn nick. -->
         <div class="f-row" style="margin-top: 12px; gap: 12px;">
           <button type="button" class="btn btn-ghost btn-sm" @click="showPreview = true"
-            :disabled="!form.messageText.trim() || !form.zaloAccountId">
+            :disabled="previewDisabled">
             <v-icon size="14">mdi-eye-outline</v-icon> Xem trước
           </button>
           <label class="switch-ab">
@@ -324,7 +351,7 @@
       :source-type="form.sourceType"
       :customer-list-id="form.customerListId"
       :zalo-account-id="form.zaloAccountId"
-      :message-text="form.messageText"
+      :message-text="previewMessageText"
       :count="3"
       @close="showPreview = false"
     />
@@ -362,7 +389,16 @@ interface ContentBlockRow {
 
 const jobs = ref<JobRow[]>([]);
 const lists = ref<Array<{ id: string; name: string; hasZaloEntries: number }>>([]);
-const nicks = ref<Array<{ id: string; displayName: string | null; phone: string | null; status: string }>>([]);
+const nicks = ref<Array<{
+  id: string;
+  displayName: string | null;
+  phone: string | null;
+  status: string;
+  liveStatus?: string;
+  friendCount?: number;
+  broadcastBlacklisted?: boolean;
+  blacklistReason?: string | null;
+}>>([]);
 const contentBlocks = ref<ContentBlockRow[]>([]);
 const loading = ref(true);
 const showCreate = ref(false);
@@ -420,12 +456,42 @@ const showPreview = ref(false);
 
 const friendCount = ref<number | null>(null);
 
+// 2026-07-26 fix: Preview hỗ trợ cả content-blocks mode (xoay vòng nội dung theo block).
+// Khi contentMode='blocks', messageText là text của block thứ 1 để FE preview render.
+const previewMessageText = computed<string>(() => {
+  if (form.contentMode === 'blocks' && form.contentBlockIds.length > 0) {
+    const firstId = form.contentBlockIds[0];
+    const block = contentBlocks.value.find((b) => b.id === firstId);
+    return block?.messageText ?? '';
+  }
+  return form.messageText;
+});
+
+// 2026-07-26 fix: enable preview khi có (text OR content blocks) + đã chọn nick.
+const previewDisabled = computed(() => {
+  if (!form.zaloAccountId) return true;
+  if (form.contentMode === 'blocks') return form.contentBlockIds.length === 0;
+  return !form.messageText.trim();
+});
+
 async function onNickChange(): Promise<void> {
   friendCount.value = null;
   if (!form.zaloAccountId) return;
   try {
     const res = await api.get(`/broadcast-jobs/friend-count/${form.zaloAccountId}`);
     friendCount.value = res.data.count;
+  } catch (err: any) {
+    console.error('[broadcasts] friend-count failed', err);
+    friendCount.value = 0;
+  }
+}
+
+// 2026-07-26: tooltip giải thích tại sao nick disabled
+function nickTooltip(n: { status: string; broadcastBlacklisted?: boolean; blacklistReason?: string | null; friendCount?: number }): string {
+  if (n.broadcastBlacklisted) return `Nick bị blacklist broadcast${n.blacklistReason ? ': ' + n.blacklistReason : ''} — admin cần gỡ trước khi dùng`;
+  if (n.status !== 'connected') return 'Nick mất kết nối — cần quét QR lại';
+  return `SĽ bạn đã kết bạn của nick: ${(n.friendCount ?? 0).toLocaleString('vi-VN')}`;
+}
   } catch { friendCount.value = 0; }
 }
 
@@ -474,9 +540,27 @@ async function openCreate(): Promise<void> {
     lists.value = (lr.data.lists ?? lr.data ?? []).map((l: any) => ({
       id: l.id, name: l.name, hasZaloEntries: l.hasZaloEntries ?? 0,
     }));
-    nicks.value = (nr.data.accounts ?? nr.data ?? []).map((n: any) => ({
-      id: n.id, displayName: n.displayName, phone: n.phone, status: n.status,
-    }));
+    nicks.value = await Promise.all(
+      (nr.data.accounts ?? nr.data ?? []).map(async (n: any) => {
+        let friends = 0;
+        try {
+          const fr = await api.get(`/broadcast-jobs/friend-count/${n.id}`);
+          friends = fr.data.count ?? 0;
+        } catch {
+          friends = 0;
+        }
+        return {
+          id: n.id,
+          displayName: n.displayName,
+          phone: n.phone,
+          status: n.status,
+          liveStatus: n.liveStatus,
+          friendCount: friends,
+          broadcastBlacklisted: !!n.broadcastBlacklisted,
+          blacklistReason: n.broadcastBlacklistReason ?? null,
+        };
+      }),
+    );
   }
 }
 

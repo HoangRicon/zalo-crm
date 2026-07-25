@@ -236,6 +236,115 @@ async function enrichListOnce(listId: string): Promise<{ processed: number; enri
   });
 }
 
+// 2026-07-25 fix: Phase 2 — batch scan SDK.
+// Batch enrich entries chưa match Friend table bằng cách gọi zaloOps.findUser trực tiếp.
+// Gọi user đã chọn 1 nick trong org qua POST /customer-lists/:id/rescan-zalo?mode=sdk.
+// Throttle 2.2s giữa mỗi SĐT (batch 15/30s = burst limit 'friend_lookup' 1000/ngày).
+// Kết quả:
+//   - Có UID   → set hasZalo=true, zaloUid, zaloGlobalId, zaloName
+//   - 404/null → set hasZalo=false (chốt 2026-05-30: đã verify qua SDK)
+//   - Lỗi / exception → giữ hasZalo=null, status='enriched' (coi như "chưa rõ", retry sau)
+const SDK_THROTTLE_MS = 2200; // ~15 entries / 30s = đúng burst limit
+const SDK_MAX_PER_LIST = 500;  // an toàn: limit daily 1000 / 2 nick có thể chạy
+
+export async function enrichListWithSdk(args: {
+  listId: string;
+  zaloAccountId: string;
+  orgId: string;
+}): Promise<{ processed: number; found: number; notFound: number; errors: number }> {
+  const { listId, zaloAccountId, orgId } = args;
+  const start = Date.now();
+  let processed = 0, found = 0, notFound = 0, errors = 0;
+
+  // Verify nick thuộc org
+  const nick = await prisma.zaloAccount.findFirst({
+    where: { id: zaloAccountId, orgId },
+    select: { id: true, archivedAt: true },
+  });
+  if (!nick || nick.archivedAt) {
+    logger.warn(`[list-enrich-sdk] nick ${zaloAccountId} not found or archived`);
+    return { processed: 0, found: 0, notFound: 0, errors: 0 };
+  }
+
+  return withTenant(orgId, async () => {
+    while (processed < SDK_MAX_PER_LIST) {
+      // Pick entries: status='enriched' (worker đã check Friend xong) + hasZalo=null
+      // CHƯA quét SDK lần nào (= không có zaloLookupAttempts hoặc attempts=0).
+      const pending = await prisma.customerListEntry.findMany({
+        where: {
+          customerListId: listId,
+          phoneValid: true,
+          hasZalo: null,
+          status: 'enriched',
+        },
+        select: { id: true, phoneE164: true },
+        // Skip entries đã thử nhiều lần (lỗi mạng/SDK) — tránh loop
+        take: 10,
+      });
+
+      // Filter bỏ entries đã từng thử (zaloLookupAttempts > 0) — hiện không có field
+      // attempts trên entry, dùng enrichedAt > X làm proxy. Tạm thời KHÔNG skip,
+      // idempotent retry OK nếu idempotency key = phone.
+      if (pending.length === 0) break;
+
+      for (const entry of pending) {
+        processed++;
+        const phone = entry.phoneE164?.replace(/[^\d]/g, '');
+        if (!phone) continue;
+        try {
+          const result: any = await (await import('../../shared/zalo-operations.js')).zaloOps.findUser(zaloAccountId, phone);
+          const uid = String(result?.uid || result?.userId || '') || null;
+          if (uid) {
+            // Tìm ra Zalo → cập nhật entry + onPhoneUidResolved (tạo friend + contact nếu cần)
+            await prisma.customerListEntry.update({
+              where: { id: entry.id },
+              data: {
+                hasZalo: true,
+                zaloUid: uid,
+                zaloGlobalId: String(result.globalId || '') || null,
+                zaloName: String(result.zaloName || result.displayName || result.display_name || '') || null,
+                resolvedByNickId: zaloAccountId,
+                status: 'enriched',
+                enrichedAt: new Date(),
+              },
+            });
+            found++;
+            // Update Friend table (idempotent — không tạo duplicate)
+            await (await import('../contacts/resolve-contact.js')).resolveOrCreateContact({
+              orgId,
+              zaloAccountId,
+              zaloUidInNick: uid,
+              zaloGlobalId: String(result.globalId || '') || null,
+              phone: entry.phoneE164 ?? '',
+              fallbackFullName: String(result.zaloName || result.displayName || '') || null,
+            }).catch((err) => logger.warn(`[list-enrich-sdk] resolveContact failed: ${(err as Error).message}`));
+          } else {
+            // 404/null → hasZalo=false (xác nhận chắc chắn không có Zalo)
+            await prisma.customerListEntry.update({
+              where: { id: entry.id },
+              data: { hasZalo: false, status: 'enriched', enrichedAt: new Date() },
+            });
+            notFound++;
+          }
+        } catch (err: any) {
+          // Exception: giữ hasZalo=null, retry sau
+          errors++;
+          logger.warn(`[list-enrich-sdk] entry=${entry.id} phone=${phone}: ${err?.message ?? err}`);
+        }
+        // Throttle giữa các SĐT — tôn trọng burst limit Zalo
+        await new Promise((res) => setTimeout(res, SDK_THROTTLE_MS));
+      }
+    }
+
+    await recomputeListCounters(listId);
+    logger.info(
+      { listId, processed, found, notFound, errors, ms: Date.now() - start },
+      '[list-enrich-sdk] list done',
+    );
+    return { processed, found, notFound, errors };
+  });
+}
+
 /**
  * Background tick: scan all org's lists có status='processing' + pending entries.
  * Pick first list, enrich 1 chunk, return.

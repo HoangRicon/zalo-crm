@@ -60,10 +60,27 @@
             <v-icon size="16">{{ currentList?.leadNotifyEnabled ? 'mdi-checkbox-blank-circle' : 'mdi-bell-ring-outline' }}</v-icon>
             {{ currentList?.leadNotifyEnabled ? 'Đang chạy' : 'Tự động giao & báo' }}
           </button>
-          <button class="btn btn-ghost btn-sm" @click="onRescan">
-            <v-icon size="16">mdi-refresh</v-icon>
-            Quét lại Zalo
-          </button>
+          <v-menu>
+            <template #activator="{ props }">
+              <button class="btn btn-ghost btn-sm" v-bind="props">
+                <v-icon size="16">mdi-refresh</v-icon>
+                Quét lại Zalo
+                <v-icon size="14">mdi-chevron-down</v-icon>
+              </button>
+            </template>
+            <v-list density="compact">
+              <v-list-item @click="onRescan('offline')">
+                <template #prepend><v-icon size="18" color="info">mdi-database-search</v-icon></template>
+                <v-list-item-title>Quét offline (nhanh)</v-list-item-title>
+                <v-list-item-subtitle>Match Friend table — không gọi Zalo</v-list-item-subtitle>
+              </v-list-item>
+              <v-list-item @click="showSdkScanPicker = true">
+                <template #prepend><v-icon size="18" color="primary">mdi-magnify-scan</v-icon></template>
+                <v-list-item-title>Quét qua Zalo SDK (chậm)</v-list-item-title>
+                <v-list-item-subtitle>Gọi findUser qua 1 nick — có kết quả thật</v-list-item-subtitle>
+              </v-list-item>
+            </v-list>
+          </v-menu>
           <button class="btn btn-ghost btn-sm">
             <v-icon size="16">mdi-download</v-icon>
             Export CSV
@@ -150,11 +167,11 @@
           class="hero-stat"
           :class="{ active: entryTab === 'no_zalo' }"
           @click="setTab('no_zalo')"
-          title="Số hợp lệ nhưng chưa rõ có Zalo. Đưa vào Campaign để quét xác minh."
+          title="SĐT hợp lệ nhưng CHƯA xác minh có Zalo hay không. Worker đã check Friend table (không match nick nào), cần Campaign scan qua SDK Zalo để xác nhận."
         >
-          <div class="l">Đang chờ Quét</div>
+          <div class="l">Chưa xác minh</div>
           <div class="v">{{ notScannedSdk.toLocaleString('vi-VN') }}</div>
-          <div class="pct">cần Campaign quét xác nhận</div>
+          <div class="pct">cần Campaign quét SDK</div>
         </div>
       </div>
     </div>
@@ -185,8 +202,8 @@
       <button class="subtab" :class="{ active: entryTab === 'has_zalo' }" @click="setTab('has_zalo')">
         <v-icon size="13" class="st-green">mdi-circle</v-icon> Có Zalo <span class="count">{{ currentList?.hasZaloEntries ?? 0 }}</span>
       </button>
-      <button class="subtab" :class="{ active: entryTab === 'no_zalo' }" @click="setTab('no_zalo')" title="Đã check Friend, chưa rõ có Zalo — cần Campaign quét xác nhận">
-        <v-icon size="13" class="st-blue">mdi-circle</v-icon> Đang chờ Quét <span class="count">{{ notScannedSdk }}</span>
+      <button class="subtab" :class="{ active: entryTab === 'no_zalo' }" @click="setTab('no_zalo')" title="Đã check Friend xong nhưng không match nick nào → CHƯA xác minh có Zalo hay không. Cần Campaign SDK scan để xác nhận.">
+        <v-icon size="13" class="st-blue">mdi-circle</v-icon> Chưa xác minh <span class="count">{{ notScannedSdk }}</span>
       </button>
     </div>
 
@@ -600,6 +617,42 @@
       :list-id="listId"
       @saved="onLeadNotifySaved"
     />
+
+    <!-- 2026-07-25 fix: Modal chọn nick để chạy batch SDK scan -->
+    <v-dialog v-model="showSdkScanPicker" max-width="480">
+      <v-card>
+        <v-card-title class="d-flex align-center gap-2">
+          <v-icon color="primary">mdi-magnify-scan</v-icon>
+          Quét qua Zalo SDK
+        </v-card-title>
+        <v-card-text>
+          <p class="text-body-2 mb-3">
+            Chọn <b>1 nick</b> để chạy <code>findUser</code> qua Zalo cho các SĐT đang ở trạng thái "Chưa xác minh".
+            Tốn ~2.2s mỗi SĐT (giới hạn burst 15/30s của Zalo). Kết quả cập nhật từng entry.
+          </p>
+          <v-select
+            v-model="sdkPickerAccountId"
+            :items="zaloAccounts ?? []"
+            item-title="displayName"
+            item-value="id"
+            label="Nick Zalo để quét"
+            variant="outlined"
+            density="compact"
+            :loading="accountLoading"
+          />
+          <v-alert v-if="notScannedSdk > 0" type="info" variant="tonal" density="compact" class="mt-2">
+            Có <b>{{ notScannedSdk }}</b> SĐT chưa xác minh — ước tính ~{{ Math.ceil((notScannedSdk * 2.2) / 60) }} phút.
+          </v-alert>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="showSdkScanPicker = false">Huỷ</v-btn>
+          <v-btn color="primary" :disabled="!sdkPickerAccountId" @click="onConfirmSdkScan">
+            Bắt đầu quét SDK
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -870,15 +923,28 @@ async function onUnarchive() {
   await fetchListById(listId.value);
 }
 
-async function onRescan() {
-  const result = await rescanZalo(listId.value);
+async function onRescan(mode: 'offline' | 'sdk' = 'offline', zaloAccountId?: string) {
+  const result = await rescanZalo(listId.value, { mode, zaloAccountId });
   if (result?.ok) {
-    toast.success(`Đã bắt đầu quét lại ${result.pendingLookup} SĐT. Refresh sau vài phút.`);
+    const suffix = result.mode === 'sdk' ? ' qua Zalo SDK (chậm vài phút)' : ' offline';
+    toast.success(`Đã bắt đầu quét ${result.pendingLookup} SĐT${suffix}. Refresh sau 30s để xem tiến độ.`);
     setTimeout(async () => {
       await fetchListById(listId.value);
       await fetchEntries(listId.value);
-    }, 2000);
+    }, 4000);
   }
+}
+
+// 2026-07-25 fix: state cho modal chọn nick để chạy SDK scan
+const showSdkScanPicker = ref(false);
+const sdkPickerAccountId = ref<string | null>(null);
+async function onConfirmSdkScan() {
+  if (!sdkPickerAccountId.value) {
+    toast.error('Vui lòng chọn nick Zalo');
+    return;
+  }
+  showSdkScanPicker.value = false;
+  await onRescan('sdk', sdkPickerAccountId.value);
 }
 
 async function onDelete() {
@@ -1131,20 +1197,26 @@ function dupTotal(l: CustomerListSummary | null): number {
 }
 
 /**
- * Trạng thái entry — vocabulary chuẩn cho sale (chốt 2026-05-20):
- *   [green]  Đã có Zalo        — match Friend table HOẶC Campaign SDK xác nhận
- *   [amber]  Đang chờ CRM      — số valid, chưa rõ có Zalo, cần Campaign quét
- *   [red]    Không có Zalo     — Campaign SDK trả 404
- *   [wait]   Đang quét         — worker chưa xử lý (mới import)
+ * Trạng thái entry — vocabulary chuẩn cho sale (chốt 2026-05-20, cập nhật 2026-07-25):
+ *   [green]  Có Zalo           — match Friend table HOẶC SDK xác nhận
+ *   [amber]  Chưa xác minh     — số valid, Friend không match, cần Campaign SDK scan
+ *   [red]    Không có Zalo     — SDK trả 404 (xác nhận chắc chắn KHÔNG có Zalo)
+ *   [wait]   Đợi worker       — worker chưa xử lý (mới import, status='validated')
  *   [grey]   Số không hợp lệ   — parse fail
  *   [orange] Trùng trong tệp   — dup cùng list
  *   [orange] Đã có ở tệp "X"   — dup cross-list, inline tên tệp
  *   [lock]   Đã là khách CRM   — đã có Contact
  *   [skip]   Sale loại         — sale bulk-skip
+ *
+ * 2026-07-25 fix: đổi "Đang chờ Quét" → "Chưa xác minh" để khỏi hiểu nhầm với
+ * worker đang chạy. Worker hiện tại (enrich v1) CHỈ match Friend table — không
+ * gọi Zalo SDK. Trạng thái "Chưa xác minh" là TĨNH (đã check Friend xong), cần
+ * Campaign SDK scan hoặc bấm "Tìm Zalo" thủ công từng entry để chuyển thành
+ * "Có Zalo" / "Không có Zalo".
  */
 /**
- * 2-axis status model (chốt 2026-05-20):
- *   - Lifecycle (5 ô): Mới / Đang chờ Quét / Có Zalo / Không có Zalo / Lỗi
+ * 2-axis status model (chốt 2026-05-20, cập nhật 2026-07-25):
+ *   - Lifecycle (5 ô): Mới / Đợi worker / Có Zalo / Không có Zalo / Lỗi
  *     → đọc từ `status` + `hasZalo`
  *   - System messages: stack append-only các sự kiện đặc thù (trùng, sale loại,
  *     số sai format cụ thể, ...) → đọc từ `systemMessages` JSON array

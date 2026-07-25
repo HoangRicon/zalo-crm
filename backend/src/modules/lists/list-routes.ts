@@ -20,7 +20,7 @@ import { Prisma } from '@prisma/client';
 import { authMiddleware } from '../auth/auth-middleware.js';
 import { logger } from '../../shared/utils/logger.js';
 import { parseAndDedup, parseRawText, detectInternalDup } from './list-import-service.js';
-import { kickoffEnrichment } from './list-enrichment-service.js';
+import { enrichListWithSdk, kickoffEnrichment } from './list-enrichment-service.js';
 import { buildMessagesFromState, type SystemMessage } from './list-system-messages.js';
 import { randomUUID } from 'node:crypto';
 import { getOwnerScope, applyOwnerScope } from '../rbac/owner-scope.js';
@@ -614,11 +614,20 @@ export async function customerListRoutes(app: FastifyInstance): Promise<void> {
   );
 
   // ─── POST /customer-lists/:id/rescan-zalo ───
-  app.post<{ Params: { id: string } }>(
+  app.post<{ Params: { id: string }; Body: { mode?: 'offline' | 'sdk'; zaloAccountId?: string } }>(
     '/api/v1/customer-lists/:id/rescan-zalo',
     async (request, reply) => {
       const user = request.user!;
       const { id } = request.params;
+      // 2026-07-25 fix: Phase 2 — chế độ quét:
+      //   'offline' (mặc định) → match Friend table NHANH (không gọi SDK)
+      //   'sdk'                → gọi Zalo SDK findUser chậm nhưng có kết quả xác minh thật
+      // Khi mode='sdk' BẮT BUỘC truyền zaloAccountId thuộc org.
+      const body = (request.body ?? {}) as { mode?: 'offline' | 'sdk'; zaloAccountId?: string };
+      const mode = body.mode ?? 'offline';
+      if (mode === 'sdk' && !body.zaloAccountId) {
+        return reply.status(400).send({ error: 'mode=sdk requires zaloAccountId' });
+      }
       try {
         const list = await prisma.customerList.findFirst({
           where: { id, orgId: user.orgId },
@@ -654,8 +663,20 @@ export async function customerListRoutes(app: FastifyInstance): Promise<void> {
           data: { pendingLookupEntries: pending, status: 'processing' },
         });
 
+        if (mode === 'sdk' && body.zaloAccountId) {
+          // Phase 2: gọi SDK batch — chạy nền (fire-and-forget).
+          void (async () => {
+            try {
+              await enrichListWithSdk({ listId: id, zaloAccountId: body.zaloAccountId!, orgId: user.orgId });
+            } catch (err) {
+              logger.error({ err, listId: id }, '[list-enrich-sdk] background failed');
+            }
+          })();
+          return { ok: true, mode, pendingLookup: pending };
+        }
+
         void kickoffEnrichment(id);
-        return { ok: true, pendingLookup: pending };
+        return { ok: true, mode, pendingLookup: pending };
       } catch (err) {
         logger.error({ err, id }, '[customer-lists] rescan failed');
         return reply.status(500).send({ error: 'internal_error' });

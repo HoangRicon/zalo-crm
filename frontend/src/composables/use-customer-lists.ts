@@ -255,9 +255,12 @@ export function useCustomerLists() {
     }
   }
 
-  async function rescanZalo(id: string) {
+  async function rescanZalo(id: string, opts?: { mode?: 'offline' | 'sdk'; zaloAccountId?: string }) {
     try {
-      const res = await api.post(`/customer-lists/${id}/rescan-zalo`);
+      const res = await api.post(`/customer-lists/${id}/rescan-zalo`, {
+        mode: opts?.mode,
+        zaloAccountId: opts?.zaloAccountId,
+      });
       return res.data;
     } catch (err) {
       console.error('[customer-lists] rescan failed:', err);

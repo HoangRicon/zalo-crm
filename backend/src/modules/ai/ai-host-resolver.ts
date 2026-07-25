@@ -14,17 +14,15 @@
  * /.dockerenv, hoặc dev cố ý chạy container nhưng muốn tắt mapping).
  */
 
-/* Cached 1 lần lúc boot — fs.existsSync mỗi call tốn ~1 syscall, không cần. */
-const isInContainer = (() => {
-  try {
-    // Node 20+. Đồng bộ, không async, không await được nhưng isInContainer
-    // chỉ chạy khi resolveHost() được gọi → chỉ trả 1 lần là đủ.
-    // require('node:fs') để bundle tree-shake đúng.
-    return require('node:fs').existsSync('/.dockerenv');
-  } catch {
-    return false;
-  }
-})();
+/* 2026-07-26 fix: dùng `import` ESM top-level thay vì `require('node:fs')`.
+ * Backend build ra ESM (package.json type=module) → `require` KHÔNG định nghĩa
+ * trong scope ESM → throw ReferenceError → catch block → isInContainer = false
+ * → resolveHost giữ nguyên 127.0.0.1 → ECONNREFUSED. Symtôm: node -e (CJS) test
+ * pass vì `require` có sẵn, nhưng app runtime (Fastify + ESM) fail. fix bằng
+ * top-level import. */
+import { existsSync } from 'node:fs';
+
+const isInContainer = existsSync('/.dockerenv');
 
 function isRunningInDockerEnv(): boolean {
   const env = process.env.RUNNING_IN_DOCKER;

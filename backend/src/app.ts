@@ -482,6 +482,11 @@ async function bootstrap() {
       startBroadcastCron(io);
       const { startTargetCron } = await import('./modules/target/target-cron.js');
       startTargetCron();
+      // 2026-07-28 BUG #1 fix: Lead Pool auto-return cron (mỗi 15 phút).
+      // Trước đây schema có expiresAt + autoReturnedAt + releaseReason nhưng
+      // KHÔNG có worker thực sự sweep → lead kẹt trên tay sale vĩnh viễn.
+      const { startLeadPoolCron } = await import('./modules/lead-pool/lead-pool-cron.js');
+      startLeadPoolCron();
       // Sprint 3 R9 2026-07-21: Churn Risk cron nightly 02:00 local.
       const { startChurnCron } = await import('./modules/churn-risk/churn-cron.js');
       startChurnCron();

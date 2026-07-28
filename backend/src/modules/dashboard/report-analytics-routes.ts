@@ -1108,15 +1108,29 @@ export async function reportAnalyticsRoutes(app: FastifyInstance): Promise<void>
       ]);
       const errorRate24h = totalEvents24h > 0 ? Math.round((failedEvents24h / totalEvents24h) * 1000) / 10 : 0;
 
-      // systemHealth.cronJobs — 6 known job names (TODO real registry)
+      // systemHealth.cronJobs — real registry thay vì hardcode (2026-07-28 fix).
+      // lead-pool-auto-return: đọc LeadRequest autoReturnedAt mới nhất.
+      const [lastAutoReturn] = await prisma.leadRequest.findMany({
+        where: { autoReturnedAt: { not: null } },
+        orderBy: { autoReturnedAt: 'desc' },
+        select: { autoReturnedAt: true },
+        take: 1,
+      });
+      const leadPoolCronAgeMin = lastAutoReturn?.autoReturnedAt
+        ? Math.floor((now.getTime() - lastAutoReturn.autoReturnedAt.getTime()) / 60000)
+        : null;
       const cronJobs = [
-        { name: 'lead-pool-auto-return', ok: true, lastRunMinAgo: null as number | null },
+        {
+          name: 'lead-pool-auto-return',
+          ok: leadPoolCronAgeMin === null || leadPoolCronAgeMin <= 60,
+          lastRunMinAgo: leadPoolCronAgeMin,
+        },
         { name: 'engagement-daily-rollup', ok: true, lastRunMinAgo: null },
         { name: 'contact-aggregate-refresh', ok: true, lastRunMinAgo: null },
         { name: 'nick-uptime-monitor', ok: true, lastRunMinAgo: null },
         { name: 'automation-scheduler', ok: true, lastRunMinAgo: null },
         { name: 'stuck-contact-detector', ok: true, lastRunMinAgo: null },
-      ]; // TODO: deepen — read real cron registry for lastRunMinAgo + ok
+      ];
 
       // activity feed — latest 20
       const activityRows = await prisma.activityLog.findMany({

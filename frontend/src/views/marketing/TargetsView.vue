@@ -124,6 +124,22 @@
         <label class="f-label">Lời nhắn kèm lời mời kết bạn <span class="f-hint">— biến: <code v-pre>{{ten}}</code> tên khách, <code v-pre>{{sdt}}</code> SĐT</span></label>
         <textarea v-model="form.requestMsg" class="f-input" rows="3"
           placeholder="Xin chào! Tôi đang phân phối dự án..., kết bạn để gửi thông tin tới anh/chị nhé."></textarea>
+        <!-- 2026-07-28 fix: thêm helper chèn biến + preview thời gian thực + template
+             nhanh. Biến được BE render bằng renderMessage({name, phone}). -->
+        <div class="var-helper">
+          <span class="var-hint">Chèn biến:</span>
+          <button type="button" class="var-btn" @click="insertRequestVar('{{ten}}')">Tên KH</button>
+          <button type="button" class="var-btn" @click="insertRequestVar('{{sdt}}')">SĐT</button>
+          <button type="button" class="var-btn" @click="insertRequestVar('{{zaloName}}')">Tên Zalo</button>
+          <span class="var-hint" style="margin-left:8px">Template:</span>
+          <button type="button" class="var-btn tmpl" @click="applyRequestTemplate('intro')">Giới thiệu</button>
+          <button type="button" class="var-btn tmpl" @click="applyRequestTemplate('care')">CSKH</button>
+          <button type="button" class="var-btn tmpl" @click="applyRequestTemplate('event')">Sự kiện</button>
+        </div>
+        <div v-if="form.requestMsg" class="tg-preview">
+          <span class="tg-preview-label">Xem trước:</span>
+          <span class="tg-preview-text">{{ renderRequestPreview }}</span>
+        </div>
 
         <!-- ===== Tin chào khi khách chấp nhận (vòng 6) ===== -->
         <label class="f-check">
@@ -141,8 +157,22 @@
           </div>
 
           <template v-if="form.welcomeMode === 'text'">
-            <textarea v-model="form.welcomeMsg" class="f-input" rows="3" style="margin-top:8px"
+            <textarea v-model="form.welcomeMsg" class="f-input" rows="4" style="margin-top:8px"
               placeholder="Cảm ơn {{ten}} đã kết bạn! Em gửi anh/chị thông tin dự án ạ…"></textarea>
+            <div class="var-helper">
+              <span class="var-hint">Chèn biến:</span>
+              <button type="button" class="var-btn" @click="insertWelcomeVar('{{ten}}')">Tên KH</button>
+              <button type="button" class="var-btn" @click="insertWelcomeVar('{{sdt}}')">SĐT</button>
+              <button type="button" class="var-btn" @click="insertWelcomeVar('{{zaloName}}')">Tên Zalo</button>
+              <span class="var-hint" style="margin-left:8px">Template:</span>
+              <button type="button" class="var-btn tmpl" @click="applyWelcomeTemplate('thanks')">Cảm ơn</button>
+              <button type="button" class="var-btn tmpl" @click="applyWelcomeTemplate('info')">Thông tin</button>
+              <button type="button" class="var-btn tmpl" @click="applyWelcomeTemplate('voucher')">Voucher</button>
+            </div>
+            <div v-if="form.welcomeMsg" class="tg-preview">
+              <span class="tg-preview-label">Xem trước:</span>
+              <span class="tg-preview-text">{{ renderWelcomePreview }}</span>
+            </div>
           </template>
           <template v-else>
             <div v-if="contentBlocks.length === 0" class="tg-empty" style="padding:12px 0">
@@ -217,7 +247,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, reactive, ref } from 'vue';
+import { onMounted, onUnmounted, reactive, ref, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { api } from '@/api/index';
 import { useToast } from '@/composables/use-toast';
@@ -329,6 +359,38 @@ function toggleWelcomeBlock(id: string): void {
   if (i >= 0) form.welcomeBlockIds.splice(i, 1);
   else form.welcomeBlockIds.push(id);
 }
+
+// 2026-07-28 fix: helper chèn biến + template nhanh cho form Target. Biến KHỚP
+// với renderMessage() bên BE (target-cron.ts gọi renderMessage(content.messageText,
+// { name, phone })), nên preview chính xác 100%.
+function insertRequestVar(v: string): void {
+  form.requestMsg = (form.requestMsg ?? '') + v;
+}
+function insertWelcomeVar(v: string): void {
+  form.welcomeMsg = (form.welcomeMsg ?? '') + v;
+}
+const REQUEST_TEMPLATES: Record<string, string> = {
+  intro: 'Xin chào {{ten}}! Tôi đang hỗ trợ tư vấn dự án, kết bạn để gửi thông tin tới anh/chị nhé.',
+  care: 'Chào {{ten}}! Em là CSKH, follow Zalo để nhận thông báo đơn hàng và hỗ trợ nhanh ạ.',
+  event: 'Chào {{ten}}! Đầu tuần có sự kiện ưu đãi — kết bạn để em gửi chi tiết nhé.',
+};
+const WELCOME_TEMPLATES: Record<string, string> = {
+  thanks: 'Cảm ơn {{ten}} đã kết bạn! Em gửi anh/chị thông tin dự án ạ.',
+  info: 'Chào {{ten}}! Cảm ơn anh/chị đã đồng ý kết bạn. Em gửi tài liệu qua Zalo nhé.',
+  voucher: 'Cảm ơn {{ten}}! Tặng anh/chị voucher giảm giá 10% cho đơn tiếp theo — em gửi mã sau nhé.',
+};
+function applyRequestTemplate(key: keyof typeof REQUEST_TEMPLATES): void {
+  form.requestMsg = REQUEST_TEMPLATES[key];
+}
+function applyWelcomeTemplate(key: keyof typeof WELCOME_TEMPLATES): void {
+  form.welcomeMsg = WELCOME_TEMPLATES[key];
+}
+const renderRequestPreview = computed(() =>
+  (form.requestMsg ?? '').replace(/\{\{ten\}\}/g, 'Nguyễn Văn A').replace(/\{\{sdt\}\}/g, '0901234567').replace(/\{\{zaloName\}\}/g, 'Nguyễn Văn A'),
+);
+const renderWelcomePreview = computed(() =>
+  (form.welcomeMsg ?? '').replace(/\{\{ten\}\}/g, 'Nguyễn Văn A').replace(/\{\{sdt\}\}/g, '0901234567').replace(/\{\{zaloName\}\}/g, 'Nguyễn Văn A'),
+);
 
 async function createJob(): Promise<void> {
   if (!form.name.trim()) return void toast('Nhập tên mục tiêu', 'error');
@@ -467,6 +529,16 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer); });
 .f-input { width: 100%; border: 1px solid var(--border, #d5d4d8); border-radius: 8px; padding: 7px 10px; font-size: 13.5px; background: var(--surface, #fff); color: inherit; }
 .f-row { display: flex; gap: 10px; }
 .f-col { flex: 1; min-width: 0; }
+/* 2026-07-28 fix: helper chèn biến + preview cho form Target */
+.var-helper { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; padding: 8px 10px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; }
+.var-hint { font-size: 12px; color: #64748b; }
+.var-btn { background: #fff; color: #2563eb; border: 1px solid #bfdbfe; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-family: monospace; cursor: pointer; }
+.var-btn:hover { background: #eff6ff; }
+.var-btn.tmpl { color: #7c3aed; border-color: #ddd6fe; font-family: inherit; }
+.var-btn.tmpl:hover { background: #f5f3ff; }
+.tg-preview { display: flex; gap: 6px; margin-top: 8px; padding: 8px 10px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; font-size: 13px; }
+.tg-preview-label { font-weight: 600; color: #1e40af; flex-shrink: 0; }
+.tg-preview-text { color: #1e3a8a; white-space: pre-wrap; word-break: break-word; }
 .f-tabs { display: flex; gap: 6px; }
 .f-tab { border: 1px solid var(--border, #d5d4d8); background: none; border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
 .f-tab.on { background: #0e445a; color: #fff; border-color: #0e445a; }

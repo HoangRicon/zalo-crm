@@ -449,6 +449,12 @@ function toggleNick(id: string): void {
   }
   // Keep zaloAccountId in sync for backward compat
   form.zaloAccountId = form.zaloAccountIds[0] || '';
+  // BUG 2026-07-28: cũng phải sync friendCount (onNickChange cũ được gọi riêng
+  // nhưng không có nơi nào trigger nó → guard line 621 `!friendCount.value`
+  // luôn return sớm). Dùng data đã có sẵn từ openCreate (nicks[i].friendCount)
+  // để tránh round-trip API thêm lần nữa.
+  const picked = nicks.value.find((n) => n.id === form.zaloAccountId);
+  friendCount.value = picked?.friendCount ?? null;
 }
 
 // Sprint 2 R4: preview state

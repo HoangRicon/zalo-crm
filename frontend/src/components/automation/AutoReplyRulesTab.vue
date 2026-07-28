@@ -75,7 +75,19 @@
         </div>
         <div class="field">
           <label>Action content</label>
-          <textarea v-model="form.actionContent" rows="3" placeholder="Nội dung tin nhắn / template id / URL ảnh" />
+          <textarea v-model="form.actionContent" rows="6" placeholder="Nội dung tin nhắn / template id / URL ảnh" />
+          <!-- 2026-07-28 fix: thêm helper chèn biến (KHÔNG phải rich-text editor —
+               rich-text editor của Zalo không nhận HTML, chỉ nhận text thuần. Biến
+               {{name}}/{{phone}} giúp soạn nhanh hơn.) -->
+          <div class="var-helper">
+            <span class="var-hint">Chèn biến:</span>
+            <button type="button" class="var-btn" @click="insertVar('{{name}}')">Tên KH</button>
+            <button type="button" class="var-btn" @click="insertVar('{{phone}}')">SĐT KH</button>
+            <button type="button" class="var-btn" @click="insertVar('{{zaloName}}')">Tên Zalo</button>
+            <span v-if="form.actionType === 'image'" class="var-hint" style="margin-left:8px">URL ảnh (jpg/png, public)</span>
+            <span v-else-if="form.actionType === 'template'" class="var-hint" style="margin-left:8px">Template UUID hoặc slug</span>
+            <span v-else class="var-hint" style="margin-left:8px">Hỗ trợ biến {{ '{{name}}' }}, {{ '{{phone}}' }}</span>
+          </div>
         </div>
         <div class="field">
           <label>Ưu tiên (cao = chạy trước)</label>
@@ -204,6 +216,12 @@ async function del(r: AutoReplyRule) {
   } catch (e: any) {
     toast.error('Lỗi xóa');
   }
+}
+
+// 2026-07-28 fix: chèn biến vào cuối textarea actionContent (giúp soạn rule
+// nhanh hơn mà không cần gõ tay {{name}}).
+function insertVar(v: string): void {
+  form.value.actionContent = (form.value.actionContent ?? '') + v;
 }
 
 onMounted(load);
@@ -336,5 +354,33 @@ onMounted(load);
   border-radius: 6px;
   font-size: 12px;
   cursor: pointer;
+}
+.var-helper {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 6px;
+}
+.var-hint {
+  font-size: 12px;
+  color: #64748b;
+}
+.var-btn {
+  background: #fff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-family: monospace;
+  cursor: pointer;
+}
+.var-btn:hover {
+  background: #eff6ff;
 }
 </style>

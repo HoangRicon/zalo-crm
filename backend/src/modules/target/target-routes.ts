@@ -227,13 +227,19 @@ export async function targetRoutes(app: FastifyInstance): Promise<void> {
       if (b.welcomeMsg !== undefined) data.welcomeMsg = b.welcomeMsg?.trim() ?? '';
       if (b.welcomeBlockIds !== undefined) data.welcomeBlockIds = b.welcomeBlockIds;
       // Bật chào cho job đã chạy → xếp hàng cả các lời mời ĐÃ gửi trước đó chưa chào.
-      // Item cũ (trước vòng 6) thiếu contactId → backfill từ FriendshipAttempt
-      // (khớp nick + zaloUidFound) rồi mới đánh 'waiting'.
+      // BUG #7 fix (2026-07-28): match BẰNG BẢNG friends (thay vì chỉ friendship_attempts)
+      // — Friend table chứa zaloUidInNick HIỆN TẠI (có thể đã re-UID sau nick sync),
+      // còn friendship_attempts.zalo_uid_found chỉ chốt tại thời điểm gửi lời mời. Nếu KH
+      // re-UID sau → backfill miss → contact_id vẫn NULL → welcome ticker query skip → KH
+      // mất tin chào. Ưu tiên Friend match (chính xác hơn), fallback FriendshipAttempt.
       if (b.welcomeEnabled === true && !existing.welcomeEnabled) {
         await prisma.$executeRaw`
           UPDATE target_run_items tri
-             SET contact_id = fa.contact_id
+             SET contact_id = COALESCE(f.contact_id, fa.contact_id)
             FROM friendship_attempts fa
+            LEFT JOIN friends f
+              ON f.zalo_account_id = fa.zalo_account_id
+             AND f.zalo_uid_in_nick = fa.zalo_uid_found
            WHERE tri.job_id = ${existing.id}
              AND tri.contact_id IS NULL
              AND tri.status = 'sent'

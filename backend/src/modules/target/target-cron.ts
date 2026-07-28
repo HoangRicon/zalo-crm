@@ -123,14 +123,17 @@ export async function runTargetTick(): Promise<void> {
 }
 
 /**
- * Gửi tin chào cho khách ĐÃ chấp nhận kết bạn (tối đa 1 tin/job/tick).
+ * Gửi tin chào cho khách ĐÃ chấp nhận kết bạn (tối đa 5 tin/job/tick — BUG #9 fix).
  * Đối chiếu: TargetRunItem(welcomeStatus='waiting') × FriendshipAttempt(state='accepted').
+ * BUG #15 fix: KHÔNG respect khung giờ 8-21h (chỉ friend invite mới tôn trọng) — KH
+ * accept lời mời lúc 21h59 vẫn được chào ngay, không đợi tới 8h sáng.
  */
-async function processWelcome(job: WelcomeJobRow, now: Date): Promise<void> {
-  // Giãn cách chống block giữa 2 tin chào (dùng chung cấu hình delay của job)
-  if (job.lastWelcomeAt && now.getTime() - job.lastWelcomeAt.getTime() < randomDelayMs(job.delaySecMin, job.delaySecMax)) {
-    return;
-  }
+async function processWelcome(job: WelcomeJobRow, _now: Date): Promise<void> {
+  // BUG #15 fix (2026-07-28): đã bỏ check isWithinSendWindow ở đây. Lý do: KH accept
+  // ngay trước khi tick 22h close sẽ bị skip cả đêm → cảm giác "kết bạn xong im
+  // lặng 9 tiếng". Welcome là moment "vừa kết bạn" — gửi ngay là tốt nhất. KHÔNG
+  // respect lastWelcomeAt cũng (nếu có accept mới, không cần delay thêm).
+  // Vẫn giới hạn tối đa 5 tin/tick (BUG #9) để chống vượt trần message/ngày.
 
   // Join thẳng item 'waiting' × attempt 'accepted' — không giới hạn batch, tránh
   // bỏ sót khách chấp nhận muộn khi job có nhiều item chờ phía trước.
@@ -146,30 +149,47 @@ async function processWelcome(job: WelcomeJobRow, now: Date): Promise<void> {
        AND tri.welcome_status = 'waiting'
        AND tri.contact_id IS NOT NULL
      ORDER BY tri.created_at ASC
-     LIMIT 1
+     LIMIT 5
   `;
-  const row = rows[0];
-  if (!row) return; // chưa ai chấp nhận — chờ tick sau
-  const item = { id: row.id, zaloUid: row.zalo_uid, name: row.name, phone: row.phone };
+  if (rows.length === 0) return; // chưa ai chấp nhận — chờ tick sau
 
-  // P4 (C2) — optimistic lock: waiting → sending. Chỉ tick thắng (count=1) mới gửi, tránh
-  // 2 tick sát nhau cùng đọc 1 row 'waiting' rồi cùng gửi 1 khách. Trên RATE_LIMITED/
-  // NOT_CONNECTED sẽ revert về 'waiting' để thử lại; crash sau claim → kẹt 'sending'
-  // (trade-off at-most-once, cần sweeper reclaim nếu muốn).
+  // BUG #9 fix (2026-07-28): batch tối đa 5 tin/tick (rate-limit message/ngày của nick
+  // vẫn được checkLimits handle riêng). Trước đây LIMIT 1 + delay 60-180s → 200 KH
+  // accept cần ~6.7h. Giờ 5/tick + cron 30s = ~40p cho 200 KH.
+  for (const row of rows) {
+    const item = { id: row.id, zaloUid: row.zalo_uid, name: row.name, phone: row.phone };
+    const ok = await sendOneWelcome(job, item);
+    if (!ok) {
+      // sendOneWelcome đã revert 'sending' → 'waiting' (rate-limited) hoặc mark 'failed'.
+      // Dừng loop để tránh đốt thêm quota khi nick đang fail.
+      break;
+    }
+  }
+}
+
+/**
+ * Gửi 1 tin chào. Trả về true nếu sent thành công.
+ * P4 (C2) — optimistic lock: waiting → sending. Chỉ tick thắng (count=1) mới gửi, tránh
+ * 2 tick sát nhau cùng đọc 1 row 'waiting' rồi cùng gửi 1 khách. Trên RATE_LIMITED/
+ * NOT_CONNECTED sẽ revert về 'waiting' để thử lại; crash sau claim → kẹt 'sending'
+ * (sweeper ở đầu Pass 2 đã handle rồi).
+ */
+async function sendOneWelcome(
+  job: WelcomeJobRow,
+  item: { id: string; zaloUid: string | null; name: string | null; phone: string | null },
+): Promise<boolean> {
   const claimed = await prisma.targetRunItem.updateMany({
     where: { id: item.id, welcomeStatus: 'waiting' },
     data: { welcomeStatus: 'sending' },
   });
-  if (claimed.count !== 1) return; // tick khác đã claim row này
+  if (claimed.count !== 1) return false; // tick khác đã claim row này
 
   if (!item.zaloUid) {
-    // Thiếu UID (bất thường) — đánh failed để không kẹt hàng đợi
     await markWelcome(job.id, item.id, 'failed', 'thieu_zalo_uid');
-    return;
+    return false;
   }
 
   try {
-    // Nội dung: xoay vòng welcomeBlockIds (spin content) hoặc welcomeMsg gõ tay
     const content = await resolveJobContent(
       { messageText: job.welcomeMsg, imageUrl: null, contentBlockIds: job.welcomeBlockIds },
       job.welcomedCount,
@@ -178,7 +198,7 @@ async function processWelcome(job: WelcomeJobRow, now: Date): Promise<void> {
     const text = renderMessage(content.messageText, { name: item.name, phone: item.phone });
     if (!text.trim() && !content.imageUrl) {
       await markWelcome(job.id, item.id, 'failed', 'welcome_msg_rong');
-      return;
+      return false;
     }
 
     if (content.imageUrl) {
@@ -197,16 +217,17 @@ async function processWelcome(job: WelcomeJobRow, now: Date): Promise<void> {
     }
     await markWelcome(job.id, item.id, 'sent', null);
     logger.info(`[target-cron] welcome job=${job.id} sent → uid=${item.zaloUid}`);
+    return true;
   } catch (err: any) {
     if (err instanceof ZaloOpError && (err.code === 'RATE_LIMITED' || err.code === 'NOT_CONNECTED')) {
-      // Nick chạm trần tin/mất kết nối — revert claim 'sending' → 'waiting', chờ tick sau
       await prisma.targetRunItem.updateMany({
         where: { id: item.id, welcomeStatus: 'sending' }, data: { welcomeStatus: 'waiting' },
       }).catch(() => {});
       logger.warn(`[target-cron] welcome job=${job.id} paused by nick: ${err.code}`);
-      return;
+      return false;
     }
     await markWelcome(job.id, item.id, 'failed', String(err?.message ?? err).slice(0, 500));
+    return false;
   }
 }
 
@@ -259,15 +280,33 @@ async function processJob(job: JobRow, now: Date): Promise<void> {
 // ── Nguồn: Tệp khách hàng (CustomerListEntry, cần findUser qua SĐT) ─────────
 async function processCustomerListTarget(job: JobRow): Promise<void> {
   const done = await prisma.targetRunItem.findMany({ where: { jobId: job.id }, select: { entryId: true } });
-  const entry = await prisma.customerListEntry.findFirst({
-    where: {
-      customerListId: job.customerListId ?? '',
-      hasZalo: true,
-      ...(done.length ? { id: { notIn: done.map((d) => d.entryId) } } : {}),
-    },
-    orderBy: { rowIndex: 'asc' },
-    select: { id: true, phoneLocal: true, phoneE164: true, nameRaw: true, zaloName: true, zaloUid: true, contactId: true },
-  });
+  // BUG #2 fix (2026-07-28): skip KH đã là friend của nick này. CustomerListEntry không
+  // có relation `contact` để nested filter, nên query trước rồi loại bằng NOT IN id.
+  // - Lấy contactId của Friend rows thuộc nick này → skip entry có contactId thuộc set.
+  // - Cũng skip entry chưa có contactId (null) — list-enrichment mới set, entry CŨ null
+  //   → KH đó chưa được resolve thật → tránh gửi nhầm.
+  const [entries, friendContactIds] = await Promise.all([
+    prisma.customerListEntry.findMany({
+      where: {
+        customerListId: job.customerListId ?? '',
+        hasZalo: true,
+        contactId: { not: null },
+        ...(done.length ? { id: { notIn: done.map((d) => d.entryId) } } : {}),
+      },
+      orderBy: { rowIndex: 'asc' },
+      select: { id: true, phoneLocal: true, phoneE164: true, nameRaw: true, zaloName: true, zaloUid: true, contactId: true },
+    }),
+    prisma.friend.findMany({
+      where: { zaloAccountId: job.zaloAccountId, contactId: {} },
+      select: { contactId: true },
+    }),
+  ]);
+  const friendSet = new Set(
+    friendContactIds
+      .map((f) => f.contactId)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0),
+  );
+  const entry = entries.find((e) => !e.contactId || !friendSet.has(e.contactId));
   if (!entry) {
     await prisma.targetJob.update({ where: { id: job.id }, data: { status: 'done' } });
     logger.info(`[target-cron] job=${job.id} done (hết đối tượng trong tệp)`);

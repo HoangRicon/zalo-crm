@@ -67,31 +67,35 @@ type WelcomeJobRow = {
 
 export async function runTargetTick(): Promise<void> {
   const now = new Date();
-  if (!isWithinSendWindow(now)) return; // ngoài khung giờ 8h-21h — chờ tick sau
+  const inSendWindow = isWithinSendWindow(now);
 
-  const jobs = await runSystemQuery(() =>
-    prisma.targetJob.findMany({
-      where: { status: 'active' },
-      select: {
-        id: true, orgId: true, sourceType: true, customerListId: true, groupScanId: true, zaloAccountId: true,
-        requestMsg: true, maxTotal: true, delaySecMin: true, delaySecMax: true,
-        lastSentAt: true, sentCount: true, noZaloCount: true, failedCount: true,
-        welcomeEnabled: true,
-      },
-    }),
-  );
+  // ── Pass 1: Gửi lời mời kết bạn — TÔN TRỌNG khung 8-21h VN ───────────────
+  // (auto kết bạn ngoài giờ này sẽ phiền KH → tự động pause đến sáng)
+  if (inSendWindow) {
+    const jobs = await runSystemQuery(() =>
+      prisma.targetJob.findMany({
+        where: { status: 'active' },
+        select: {
+          id: true, orgId: true, sourceType: true, customerListId: true, groupScanId: true, zaloAccountId: true,
+          requestMsg: true, maxTotal: true, delaySecMin: true, delaySecMax: true,
+          lastSentAt: true, sentCount: true, noZaloCount: true, failedCount: true,
+          welcomeEnabled: true,
+        },
+      }),
+    );
 
-  for (const job of jobs) {
-    await withTenant(job.orgId, () => processJob(job, now))
-      .catch((err) => logger.error(`[target-cron] job=${job.id} error`, err));
+    for (const job of jobs) {
+      await withTenant(job.orgId, () => processJob(job, now))
+        .catch((err) => logger.error(`[target-cron] job=${job.id} error`, err));
+    }
   }
 
-  // ── BUG #8 fix (2026-07-28): Sweep stuck 'sending' > 10 phút → revert 'waiting' ────
+  // ── BUG #8 + BUG W fix (2026-07-28): Sweep stuck 'sending' > 10 phút ──────
   // Trước đây nếu tick đang xử lý welcomeStatus='sending' mà process crash (OOM,
   // restart container, deploy), item đó kẹt 'sending' vĩnh viễn → KH mất welcome.
-  // Sweep ngay đầu Pass 2 để reclaim cho tick sau.
-  // Dùng createdAt làm proxy vì schema TargetRunItem KHÔNG có updatedAt (chỉ có
-  // welcomeSentAt set khi sent thành công — không phù hợp với stuck 'sending').
+  // Dùng createdAt làm proxy vì schema TargetRunItem KHÔNG có updatedAt.
+  // QUAN TRỌNG: sweeper phải chạy NGOÀI khung 8-21h (xảy ra mọi lúc KH accept
+  // lời mời), không gộp vào Pass 1.
   const stuckThreshold = new Date(now.getTime() - 10 * 60 * 1000);
   const stuckCount = await prisma.targetRunItem.updateMany({
     where: { welcomeStatus: 'sending', createdAt: { lt: stuckThreshold } },
@@ -104,8 +108,10 @@ export async function runTargetTick(): Promise<void> {
     );
   }
 
-  // ── Pass 2: Tin chào khách vừa chấp nhận kết bạn ─────────────────────────
-  // Job 'done' vẫn chào (khách chấp nhận muộn nhiều ngày sau khi hết lời mời).
+  // ── Pass 2: Tin chào khách vừa chấp nhận kết bạn — BẮT BUỘC ngoài khung giờ
+  // Trước đây early-return ngoài 8-21h CHẶN toàn bộ tick kể cả Pass 2 + sweeper.
+  // Fix 2026-07-28: tách Pass 1 (tôn trọng khung giờ) ra khỏi Pass 2 + sweeper.
+  // Welcome KHÔNG giới hạn khung giờ — KH accept lúc 21h59 vẫn chào ngay (BUG #15).
   const welcomeJobs = await runSystemQuery(() =>
     prisma.targetJob.findMany({
       where: { welcomeEnabled: true, status: { in: ['active', 'done'] } },

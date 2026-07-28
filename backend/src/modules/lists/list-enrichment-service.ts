@@ -358,7 +358,7 @@ async function backgroundTick(): Promise<void> {
     const stale = await runSystemQuery(() =>
       prisma.customerList.findMany({
         where: { status: 'processing', pendingLookupEntries: { gt: 0 } },
-        select: { id: true },
+        select: { id: true, orgId: true },
         take: 5, // process up to 5 lists in parallel per tick
         orderBy: { startedAt: 'asc' }, // FIFO
       }),
@@ -366,11 +366,62 @@ async function backgroundTick(): Promise<void> {
 
     if (stale.length === 0) return;
 
-    await Promise.allSettled(stale.map((l) => enrichListOnce(l.id)));
+    await Promise.allSettled(stale.map((l) => enrichListOnce(l.id).then(() => maybeKickSdkPass(l.id, l.orgId))));
   } catch (err) {
     logger.error({ err }, '[list-enrichment] tick failed');
   } finally {
     inFlight = false;
+  }
+}
+
+/**
+ * Sau khi Friend-table pass xong, nếu list còn entries `status='enriched' +
+ * hasZalo=null` (KH không match Friend table của bất kỳ nick nào) → tự kick
+ * SDK pass cho nick ACTIVE đầu tiên trong org. Fix 2026-07-28 B1: trước đây
+ * `enrichListOnce` chỉ match Friend table, không bao giờ gọi SDK → entry
+ * "chưa rõ" kẹt `hasZalo=null` vĩnh viễn. SDK pass chỉ chạy khi user bấm
+ * "Quét qua Zalo SDK (chậm)" tay.
+ *
+ * Nếu org không có nick ACTIVE nào → log + skip (user vẫn có thể bấm tay).
+ * Throttle giữ nguyên (2.2s/SĐT trong enrichListWithSdk), nên 500 entries cần
+ * ~18 phút. Tick 30s giữa các list → không cản luồng khác.
+ */
+async function maybeKickSdkPass(listId: string, orgId: string): Promise<void> {
+  try {
+    // Còn entries nào chưa rõ không?
+    const remaining = await withTenant(orgId, () =>
+      prisma.customerListEntry.count({
+        where: { customerListId: listId, status: 'enriched', hasZalo: null, phoneValid: true },
+      }),
+    );
+    if (remaining === 0) return;
+
+    // Pick 1 nick ACTIVE thuộc org (owner User có thể khác nhau, mình pick bất kỳ connected nào)
+    const nick = await runSystemQuery(() =>
+      prisma.zaloAccount.findFirst({
+        where: {
+          orgId,
+          status: 'connected',
+          archivedAt: null,
+        },
+        select: { id: true },
+      }),
+    );
+    if (!nick) {
+      logger.info(
+        { listId, remaining },
+        '[list-enrichment] no active nick for SDK pass — user must trigger manually',
+      );
+      return;
+    }
+
+    logger.info(
+      { listId, nickId: nick.id, remaining },
+      '[list-enrichment] kicking SDK pass for unresolved entries',
+    );
+    await enrichListWithSdk({ listId, zaloAccountId: nick.id, orgId });
+  } catch (err) {
+    logger.error({ err, listId }, '[list-enrichment] SDK kick failed');
   }
 }
 

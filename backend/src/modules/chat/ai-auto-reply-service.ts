@@ -92,21 +92,14 @@ async function processConversation(convId: string): Promise<void> {
     where: { zaloAccountId: conv.zaloAccountId, contactId: conv.contactId ?? undefined },
     select: { zaloUidInNick: true },
   });
-  let uid: string | null = friend?.zaloUidInNick ?? null;
-  if (!uid && conv.contactId) {
-    const contact = await prisma.contact.findUnique({
-      where: { id: conv.contactId },
-      select: { phoneNormalized: true },
-    });
-    if (contact?.phoneNormalized) {
-      try {
-        const found = await zaloOps.findUser(conv.zaloAccountId, contact.phoneNormalized);
-        uid = (found as any)?.uid ?? null;
-      } catch { /* skip */ }
-    }
-  }
+  const uid: string | null = friend?.zaloUidInNick ?? null;
   if (!uid) {
-    logger.info(`[ai-auto-reply] conv=${convId} không tìm ra UID → skip`);
+    // BUG 2026-07-28: trước đây fallback findUser qua SDK, vừa tốn friend_lookup
+    // quota (1000/ngày) vừa không cần thiết (Friend table đã cache từ sync
+    // nick đầy đủ). Nếu Friend null → chứng tỏ nick này chưa sync KH này → skip,
+    // log để admin biết phải đợi sync. Fallback chỉ giữ nếu cần scan SĐT mới (đã
+    // có endpoint /customer-lists/:id/rescan-zalo cho việc đó).
+    logger.info(`[ai-auto-reply] conv=${convId} missing Friend.uid for nick=${conv.zaloAccountId} contact=${conv.contactId} → skip (no fallback findUser to avoid burning friend_lookup quota)`);
     return;
   }
 

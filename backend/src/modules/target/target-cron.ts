@@ -86,6 +86,24 @@ export async function runTargetTick(): Promise<void> {
       .catch((err) => logger.error(`[target-cron] job=${job.id} error`, err));
   }
 
+  // ── BUG #8 fix (2026-07-28): Sweep stuck 'sending' > 10 phút → revert 'waiting' ────
+  // Trước đây nếu tick đang xử lý welcomeStatus='sending' mà process crash (OOM,
+  // restart container, deploy), item đó kẹt 'sending' vĩnh viễn → KH mất welcome.
+  // Sweep ngay đầu Pass 2 để reclaim cho tick sau.
+  // Dùng createdAt làm proxy vì schema TargetRunItem KHÔNG có updatedAt (chỉ có
+  // welcomeSentAt set khi sent thành công — không phù hợp với stuck 'sending').
+  const stuckThreshold = new Date(now.getTime() - 10 * 60 * 1000);
+  const stuckCount = await prisma.targetRunItem.updateMany({
+    where: { welcomeStatus: 'sending', createdAt: { lt: stuckThreshold } },
+    data: { welcomeStatus: 'waiting' },
+  });
+  if (stuckCount.count > 0) {
+    logger.warn(
+      { count: stuckCount.count },
+      '[target-cron] sweeper reverted stuck welcomeStatus=sending → waiting',
+    );
+  }
+
   // ── Pass 2: Tin chào khách vừa chấp nhận kết bạn ─────────────────────────
   // Job 'done' vẫn chào (khách chấp nhận muộn nhiều ngày sau khi hết lời mời).
   const welcomeJobs = await runSystemQuery(() =>

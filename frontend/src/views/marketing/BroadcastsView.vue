@@ -7,47 +7,48 @@
 -->
 <template>
   <div class="bc-view">
-    <div class="mkt-top">
-      <div>
-        <div class="mtt">Broadcast tự động</div>
-        <div class="mts">
-          Gửi tin hàng loạt tới <b>Tệp khách hàng</b> theo lịch (1 lần · hàng ngày · hàng tuần).
-          Tin được <b>gửi rải</b> (giãn cách ngẫu nhiên) + tôn trọng <b>trần tin/ngày của nick</b> để chống block.
-        </div>
-      </div>
-      <div class="actions">
+    <!-- 2026-07-28 redesign: dùng MarketingHeader + MarketingFilterChip + MarketingEmptyState -->
+    <MarketingHeader
+      subtitle="Marketing"
+      title="Broadcast tự động"
+      description="Gửi tin hàng loạt tới Tệp khách hàng theo lịch (1 lần · hàng ngày · hàng tuần). Tin được gửi rải (giãn cách ngẫu nhiên) + tôn trọng trần tin/ngày của nick để chống block."
+    >
+      <template #actions>
         <button class="btn btn-primary btn-sm" @click="openCreate">
           <v-icon size="16">mdi-plus-circle-outline</v-icon> Tạo broadcast
         </button>
-      </div>
-    </div>
+      </template>
+    </MarketingHeader>
 
     <div class="bc-body">
       <HeatmapWidget :days="30" class="heatmap-container" />
 
       <!-- 2026-07-22 fix-zalo-crm-mvp-gaps#8: status filter + quick stats -->
       <div class="bc-filter-row">
-        <button
-          v-for="opt in filterOptions"
-          :key="opt.value"
-          class="bc-filter-btn"
-          :class="{ active: statusFilter === opt.value }"
-          @click="statusFilter = opt.value"
-        >
-          {{ opt.label }}
-          <span v-if="opt.count !== undefined" class="bc-filter-count">{{ opt.count }}</span>
-        </button>
+        <MarketingFilterChip
+          v-model="statusFilter"
+          :options="filterOptions"
+        />
       </div>
 
-      <div v-if="loading" class="bc-empty">Đang tải…</div>
-      <template v-else>
-        <div v-if="filteredJobs.length === 0" class="bc-empty">
-          <v-icon size="40">mdi-bullhorn-outline</v-icon>
-          <p v-if="jobs.length === 0">
-            Chưa có broadcast nào. Bấm <b>Tạo broadcast</b> để bắt đầu.
-          </p>
-          <p v-else>Không có broadcast nào ở trạng thái <b>{{ statusFilterLabel }}</b>.</p>
-        </div>
+      <MarketingEmptyState
+        v-if="loading"
+        icon="mdi-loading"
+        loading
+        title="Đang tải…"
+      />
+      <MarketingEmptyState
+        v-else-if="filteredJobs.length === 0"
+        icon="mdi-bullhorn-outline"
+        :title="jobs.length === 0 ? 'Chưa có broadcast nào' : 'Không có broadcast ở trạng thái này'"
+        :hint="jobs.length === 0 ? 'Bấm Tạo broadcast để bắt đầu.' : `Trạng thái hiện tại: ${statusFilterLabel}`"
+      >
+        <template #action>
+          <button v-if="jobs.length === 0" class="btn btn-primary btn-sm" @click="openCreate">
+            <v-icon size="16">mdi-plus</v-icon> Tạo broadcast
+          </button>
+        </template>
+      </MarketingEmptyState>
 
         <div v-for="job in filteredJobs" :key="job.id" class="bc-card" :class="'st-' + job.status">
         <div class="bc-card-main">
@@ -95,7 +96,6 @@
           </button>
         </div>
       </div>
-      </template>
     </div>
 
     <!-- ============ Modal tạo broadcast ============ -->
@@ -365,6 +365,9 @@ import { useConfirm } from '@/composables/use-confirm';
 import HeatmapWidget from '@/components/marketing/HeatmapWidget.vue';
 import PreviewModal from '@/components/marketing/PreviewModal.vue';
 import ABVariantsEditor from '@/components/marketing/ABVariantsEditor.vue';
+import MarketingHeader from '@/components/marketing/MarketingHeader.vue';
+import MarketingFilterChip from '@/components/marketing/MarketingFilterChip.vue';
+import MarketingEmptyState from '@/components/marketing/MarketingEmptyState.vue';
 
 const { push: toast } = useToast();
 const { confirm } = useConfirm();

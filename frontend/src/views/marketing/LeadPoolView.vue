@@ -3,63 +3,45 @@
 <!-- LeadPoolView.vue — Lead Pool Dashboard -->
 <template>
   <div class="lead-pool-view">
-    <!-- Header -->
-    <div class="lpv-header">
-      <div class="lpv-title-row">
-        <div>
-          <h1 class="lpv-title">Lead Pool</h1>
-          <p class="lpv-subtitle">Quản lý và phân phối lead cho đội ngũ sale — nhân viên tự nhận lead từ pool theo thứ tự FIFO (ai nhận trước được lead cũ nhất).</p>
-        </div>
-        <div class="lpv-actions">
-          <button class="btn btn-ghost" @click="refresh">
-            <v-icon size="16">mdi-refresh</v-icon>
-            Làm mới
-          </button>
-        </div>
-      </div>
-    </div>
+    <!-- 2026-07-28 redesign: dùng MarketingHeader + MarketingStatCard shareable -->
+    <MarketingHeader
+      subtitle="Marketing"
+      title="Lead Pool"
+      description="Quản lý và phân phối lead cho đội ngũ sale — nhân viên tự nhận lead từ pool theo thứ tự FIFO (ai nhận trước được lead cũ nhất)."
+    >
+      <template #actions>
+        <button class="btn btn-ghost" @click="refresh">
+          <v-icon size="16">mdi-refresh</v-icon>
+          Làm mới
+        </button>
+      </template>
+    </MarketingHeader>
 
-    <!-- Stats cards -->
-    <div class="lpv-stats">
-      <div class="lpv-stat">
-        <div class="lpv-stat-icon pool">
-          <v-icon size="20">mdi-account-group-outline</v-icon>
-        </div>
-        <div class="lpv-stat-content">
-          <div class="lpv-stat-value">{{ stats.leadsInPool.toLocaleString('vi-VN') }}</div>
-          <div class="lpv-stat-label">Lead trong pool</div>
-        </div>
-      </div>
-
-      <div class="lpv-stat">
-        <div class="lpv-stat-icon assigned">
-          <v-icon size="20">mdi-account-check-outline</v-icon>
-        </div>
-        <div class="lpv-stat-content">
-          <div class="lpv-stat-value">{{ stats.assignedToday.toLocaleString('vi-VN') }}</div>
-          <div class="lpv-stat-label">Đã chia hôm nay</div>
-        </div>
-      </div>
-
-      <div class="lpv-stat">
-        <div class="lpv-stat-icon pending">
-          <v-icon size="20">mdi-clock-outline</v-icon>
-        </div>
-        <div class="lpv-stat-content">
-          <div class="lpv-stat-value">{{ stats.pendingRequests.toLocaleString('vi-VN') }}</div>
-          <div class="lpv-stat-label">Yêu cầu chờ</div>
-        </div>
-      </div>
-
-      <div class="lpv-stat">
-        <div class="lpv-stat-icon auto-return">
-          <v-icon size="20">mdi-autorenew</v-icon>
-        </div>
-        <div class="lpv-stat-content">
-          <div class="lpv-stat-value">{{ stats.upcomingAutoReturns.toLocaleString('vi-VN') }}</div>
-          <div class="lpv-stat-label">Sắp tự trả (24h)</div>
-        </div>
-      </div>
+    <div class="mk-stat-grid">
+      <MarketingStatCard
+        :value="stats.leadsInPool"
+        label="Lead trong pool"
+        icon="mdi-account-group-outline"
+        icon-class="pool"
+      />
+      <MarketingStatCard
+        :value="stats.assignedToday"
+        label="Đã chia hôm nay"
+        icon="mdi-account-check-outline"
+        icon-class="assigned"
+      />
+      <MarketingStatCard
+        :value="stats.pendingRequests"
+        label="Yêu cầu chờ"
+        icon="mdi-clock-outline"
+        icon-class="pending"
+      />
+      <MarketingStatCard
+        :value="stats.upcomingAutoReturns"
+        label="Sắp tự trả (24h)"
+        icon="mdi-autorenew"
+        icon-class="auto-return"
+      />
     </div>
 
     <!-- User quota info bar -->
@@ -271,6 +253,8 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
 import LeadPoolTable from '@/components/lead-pool/LeadPoolTable.vue';
+import MarketingHeader from '@/components/marketing/MarketingHeader.vue';
+import MarketingStatCard from '@/components/marketing/MarketingStatCard.vue';
 import { useConfirm } from '@/composables/use-confirm';
 import {
   getLeadPoolStats,
@@ -502,9 +486,21 @@ async function fetchQuota() {
 
 <style scoped>
 .lead-pool-view {
-  padding: 24px;
+  padding: 0;
   max-width: 1200px;
   margin: 0 auto;
+}
+
+.mk-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  padding: 20px;
+  background: var(--smax-grey-50, #f9fafb);
+  border-bottom: 1px solid var(--smax-grey-200, #e5e7eb);
+}
+@media (max-width: 640px) {
+  .mk-stat-grid { grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; }
 }
 
 .lpv-header {

@@ -3,21 +3,34 @@
 <!-- SequencesView.vue - Sequences Builder UI -->
 <template>
   <div class="sv-view">
-    <header class="sv-header">
-      <div>
-        <h1 class="sv-title">🔄 Sequences</h1>
-        <p class="sv-sub">Drip campaigns tự động cho KH đã enroll</p>
-      </div>
-      <div class="sv-actions">
+    <!-- 2026-07-28 redesign: dùng MarketingHeader -->
+    <MarketingHeader
+      subtitle="Automation"
+      title="Sequences"
+      description="Drip campaigns tự động cho KH đã enroll — chuỗi tin nhắn theo lịch (D+0, D+1, D+3…)."
+    >
+      <template #actions>
         <button class="btn-secondary" @click="goBack">← Quay lại Automation Hub</button>
         <button class="btn-primary" @click="newSequence">+ Sequence mới</button>
-      </div>
-    </header>
+      </template>
+    </MarketingHeader>
 
-    <div v-if="loading" class="loading">⏳ Đang tải...</div>
-    <div v-else-if="!current" class="empty">
-      <p>Chưa có sequence nào. Nhấn <strong>+ Sequence mới</strong> để tạo.</p>
-    </div>
+    <MarketingEmptyState
+      v-if="loading"
+      icon="mdi-loading"
+      loading
+      title="Đang tải…"
+    />
+    <MarketingEmptyState
+      v-else-if="!current"
+      icon="mdi-timeline-clock-outline"
+      title="Chưa có sequence nào"
+      hint="Nhấn + Sequence mới để tạo chuỗi chăm sóc tự động."
+    >
+      <template #action>
+        <button class="btn-primary" @click="newSequence">+ Sequence mới</button>
+      </template>
+    </MarketingEmptyState>
     <div v-else class="sv-body">
       <!-- Left: List -->
       <aside class="sv-sidebar">
@@ -88,6 +101,8 @@ import { useRouter } from 'vue-router';
 import { sequencesApi, type Sequence, type SequenceStep } from '@/api/sequences';
 import { useToast } from '@/composables/use-toast';
 import { useConfirm } from '@/composables/use-confirm';
+import MarketingHeader from '@/components/marketing/MarketingHeader.vue';
+import MarketingEmptyState from '@/components/marketing/MarketingEmptyState.vue';
 
 const router = useRouter();
 const toast = useToast();

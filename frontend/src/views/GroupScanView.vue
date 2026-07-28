@@ -10,41 +10,41 @@
 -->
 <template>
   <div class="d-flex flex-column h-100">
-    <!-- Toolbar: account picker + back to groups -->
-    <div class="d-flex align-center pa-4 pb-2 gap-3">
-      <div>
-        <div class="text-caption text-medium-emphasis">Nhóm Zalo / Quét thành viên</div>
-        <h1 class="text-h5">Quét nhóm &amp; thành viên</h1>
-      </div>
-      <v-spacer />
-      <v-select
-        v-model="selectedAccountId"
-        :items="accounts"
-        item-title="displayName"
-        item-value="id"
-        label="Tài khoản"
-        variant="outlined"
-        density="compact"
-        hide-details
-        style="max-width: 240px"
-        :loading="accountLoading"
-        @update:model-value="onAccountChange"
-      >
-        <template #item="{ props: itemProps, item }">
-          <v-list-item v-bind="itemProps">
-            <template #append>
-              <v-chip
-                size="x-small"
-                :color="acctOnline(item) ? 'success' : 'error'"
-                variant="tonal"
-              >
-                {{ acctOnline(item) ? 'Online' : 'Offline' }}
-              </v-chip>
-            </template>
-          </v-list-item>
-        </template>
-      </v-select>
-    </div>
+    <!-- 2026-07-28 redesign: dùng MarketingHeader + account picker actions slot -->
+    <MarketingHeader
+      subtitle="Nhóm Zalo / Quét thành viên"
+      title="Quét nhóm & thành viên"
+    >
+      <template #actions>
+        <v-select
+          v-model="selectedAccountId"
+          :items="accounts"
+          item-title="displayName"
+          item-value="id"
+          label="Tài khoản"
+          variant="outlined"
+          density="compact"
+          hide-details
+          style="max-width: 240px"
+          :loading="accountLoading"
+          @update:model-value="onAccountChange"
+        >
+          <template #item="{ props: itemProps, item }">
+            <v-list-item v-bind="itemProps">
+              <template #append>
+                <v-chip
+                  size="x-small"
+                  :color="acctOnline(item) ? 'success' : 'error'"
+                  variant="tonal"
+                >
+                  {{ acctOnline(item) ? 'Online' : 'Offline' }}
+                </v-chip>
+              </template>
+            </v-list-item>
+          </template>
+        </v-select>
+      </template>
+    </MarketingHeader>
 
     <div class="flex-1-1 overflow-auto px-4 pb-4">
       <!-- ════════ STATE 1: PICK GROUPS ════════ -->
@@ -332,6 +332,7 @@
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useSelectedAccount } from '@/composables/use-selected-account';
 import { useGroups, type GroupScanMember } from '@/composables/use-groups';
+import MarketingHeader from '@/components/marketing/MarketingHeader.vue';
 
 const { accounts, selectedAccountId, selectAccount, loading: accountLoading } = useSelectedAccount();
 

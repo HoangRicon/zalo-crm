@@ -3,22 +3,18 @@
 <!-- AutomationHubView.vue - Trang Automation tổng hợp -->
 <template>
   <div class="ah-view">
-    <header class="ah-header">
-      <h1 class="ah-title">⚡ Trang Automation</h1>
-      <p class="ah-sub">Quản lý tất cả tự động hoá: Auto Reply, Sequences, Triggers, Reports</p>
-    </header>
+    <!-- 2026-07-28 redesign: dùng MarketingHeader + MarketingFilterChip cho tabs -->
+    <MarketingHeader
+      subtitle="Automation"
+      title="Trang Automation"
+      description="Quản lý tất cả tự động hoá: Auto Reply, Sequences, Triggers, Reports."
+    />
 
-    <!-- Tabs -->
     <div class="ah-tabs">
-      <button
-        v-for="t in tabs"
-        :key="t.key"
-        class="ah-tab"
-        :class="{ active: activeTab === t.key }"
-        @click="activeTab = t.key"
-      >
-        {{ t.icon }} {{ t.label }}
-      </button>
+      <MarketingFilterChip
+        v-model="activeTab"
+        :options="tabs"
+      />
     </div>
 
     <div class="ah-body">
@@ -34,13 +30,15 @@ import { ref } from 'vue';
 import AutoReplyRulesTab from '@/components/automation/AutoReplyRulesTab.vue';
 import TriggersTab from '@/components/automation/TriggersTab.vue';
 import ReportsTab from '@/components/automation/ReportsTab.vue';
+import MarketingHeader from '@/components/marketing/MarketingHeader.vue';
+import MarketingFilterChip from '@/components/marketing/MarketingFilterChip.vue';
 
 const tabs = [
-  { key: 'auto-reply', label: 'Auto Reply', icon: '🤖' },
-  { key: 'triggers', label: 'Triggers', icon: '⚡' },
-  { key: 'reports', label: 'Reports', icon: '📊' },
+  { value: 'auto-reply', label: '🤖 Auto Reply' },
+  { value: 'triggers', label: '⚡ Triggers' },
+  { value: 'reports', label: '📊 Reports' },
 ];
-const activeTab = ref('auto-reply');
+const activeTab = ref<string>('auto-reply');
 </script>
 
 <style scoped>

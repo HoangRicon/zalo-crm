@@ -128,9 +128,9 @@
              nhanh. Biến được BE render bằng renderMessage({name, phone}). -->
         <div class="var-helper">
           <span class="var-hint">Chèn biến:</span>
-          <button type="button" class="var-btn" @click="insertRequestVar('{{ten}}')">Tên KH</button>
-          <button type="button" class="var-btn" @click="insertRequestVar('{{sdt}}')">SĐT</button>
-          <button type="button" class="var-btn" @click="insertRequestVar('{{zaloName}}')">Tên Zalo</button>
+          <button type="button" class="var-btn" @click="insertRequestVar(BRACE_O + 'ten' + BRACE_C)">Tên KH</button>
+          <button type="button" class="var-btn" @click="insertRequestVar(BRACE_O + 'sdt' + BRACE_C)">SĐT</button>
+          <button type="button" class="var-btn" @click="insertRequestVar(BRACE_O + 'zaloName' + BRACE_C)">Tên Zalo</button>
           <span class="var-hint" style="margin-left:8px">Template:</span>
           <button type="button" class="var-btn tmpl" @click="applyRequestTemplate('intro')">Giới thiệu</button>
           <button type="button" class="var-btn tmpl" @click="applyRequestTemplate('care')">CSKH</button>
@@ -161,9 +161,9 @@
               placeholder="Cảm ơn {{ten}} đã kết bạn! Em gửi anh/chị thông tin dự án ạ…"></textarea>
             <div class="var-helper">
               <span class="var-hint">Chèn biến:</span>
-              <button type="button" class="var-btn" @click="insertWelcomeVar('{{ten}}')">Tên KH</button>
-              <button type="button" class="var-btn" @click="insertWelcomeVar('{{sdt}}')">SĐT</button>
-              <button type="button" class="var-btn" @click="insertWelcomeVar('{{zaloName}}')">Tên Zalo</button>
+              <button type="button" class="var-btn" @click="insertWelcomeVar(BRACE_O + 'ten' + BRACE_C)">Tên KH</button>
+              <button type="button" class="var-btn" @click="insertWelcomeVar(BRACE_O + 'sdt' + BRACE_C)">SĐT</button>
+              <button type="button" class="var-btn" @click="insertWelcomeVar(BRACE_O + 'zaloName' + BRACE_C)">Tên Zalo</button>
               <span class="var-hint" style="margin-left:8px">Template:</span>
               <button type="button" class="var-btn tmpl" @click="applyWelcomeTemplate('thanks')">Cảm ơn</button>
               <button type="button" class="var-btn tmpl" @click="applyWelcomeTemplate('info')">Thông tin</button>
@@ -363,6 +363,11 @@ function toggleWelcomeBlock(id: string): void {
 // 2026-07-28 fix: helper chèn biến + template nhanh cho form Target. Biến KHỚP
 // với renderMessage() bên BE (target-cron.ts gọi renderMessage(content.messageText,
 // { name, phone })), nên preview chính xác 100%.
+// Lưu ý: KHÔNG dùng '{{ten}}' trong attribute string — Vue SFC compiler parse
+// nhầm token `{{` trong attribute → Unterminated string constant. Dùng constant
+// string concatenation để bypass parser.
+const BRACE_O = '{' + '{';
+const BRACE_C = '}' + '}';
 function insertRequestVar(v: string): void {
   form.requestMsg = (form.requestMsg ?? '') + v;
 }

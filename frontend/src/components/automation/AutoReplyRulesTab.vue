@@ -81,12 +81,12 @@
                {{name}}/{{phone}} giúp soạn nhanh hơn.) -->
           <div class="var-helper">
             <span class="var-hint">Chèn biến:</span>
-            <button type="button" class="var-btn" @click="insertVar('{{name}}')">Tên KH</button>
-            <button type="button" class="var-btn" @click="insertVar('{{phone}}')">SĐT KH</button>
-            <button type="button" class="var-btn" @click="insertVar('{{zaloName}}')">Tên Zalo</button>
+            <button type="button" class="var-btn" @click="insertVar(OPEN + 'name' + CLOSE)">Tên KH</button>
+            <button type="button" class="var-btn" @click="insertVar(OPEN + 'phone' + CLOSE)">SĐT KH</button>
+            <button type="button" class="var-btn" @click="insertVar(OPEN + 'zaloName' + CLOSE)">Tên Zalo</button>
             <span v-if="form.actionType === 'image'" class="var-hint" style="margin-left:8px">URL ảnh (jpg/png, public)</span>
             <span v-else-if="form.actionType === 'template'" class="var-hint" style="margin-left:8px">Template UUID hoặc slug</span>
-            <span v-else class="var-hint" style="margin-left:8px">Hỗ trợ biến {{ '{{name}}' }}, {{ '{{phone}}' }}</span>
+            <span v-else v-pre class="var-hint" style="margin-left:8px">Hỗ trợ biến <code>{{name}}</code>, <code>{{phone}}</code></span>
           </div>
         </div>
         <div class="field">
@@ -220,6 +220,11 @@ async function del(r: AutoReplyRule) {
 
 // 2026-07-28 fix: chèn biến vào cuối textarea actionContent (giúp soạn rule
 // nhanh hơn mà không cần gõ tay {{name}}).
+// Lưu ý: KHÔNG dùng '{{name}}' trực tiếp trong template — Vue SFC compiler parse
+// nhầm `{{` token trong attribute string, dẫn tới "Unterminated string constant".
+// Dùng constant ngoài string concat để bypass.
+const OPEN = '{' + '{';
+const CLOSE = '}' + '}';
 function insertVar(v: string): void {
   form.value.actionContent = (form.value.actionContent ?? '') + v;
 }

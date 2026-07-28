@@ -164,11 +164,13 @@ async function processRun(run: RunRow, io: Server | null): Promise<void> {
   // claim để mọi rate-limit/check dùng đúng nick sẽ gửi.
   const senderNickId = pickSenderNickForEntry(job, entryId);
 
-  // P5 (D1) — pre-check fail-CLOSED cho luồng gửi hàng loạt: limiter (Redis/Postgres) lỗi
-  // → HOÃN, không xả tin vượt trần lúc hạ tầng sự cố. Thao tác tay của sale đi thẳng
-  // zaloOps.exec (fail-open) nên không bị chặn oan. Pre-check KHÔNG ghi nhận (recordSend
-  // vẫn do exec làm sau khi gửi thật).
-  const gate = await zaloRateLimiter.checkLimits(senderNickId, 'message', { failClosed: true });
+  // BUG B1 fix (2026-07-28): pre-check fail-OPEN (mặc định) thay vì fail-closed.
+  // Lý do: broadcast KHÔNG critical bằng friend invite (gửi lời mời sai chạm trần nick
+  // sẽ bị khóa acc, broadcast gửi lỡ vài chục tin chỉ là "spam warning"). Fail-open chấp
+  // nhận risk gấp đôi tin khi Redis down (in-memory per-instance), nhưng KHÔNG dừng hẳn
+  // luồng broadcast — sequence/broadcast là flow chính của marketing, downtime 1-2h/ngày
+  // tệ hơn burn quota 1-2x. Friend invite vẫn fail-closed (target-cron.ts).
+  const gate = await zaloRateLimiter.checkLimits(senderNickId, 'message');
   if (!gate.allowed) {
     logger.warn(`[broadcast-cron] run=${run.id} hoãn tick: ${gate.reason ?? 'rate limited'}`);
     return;

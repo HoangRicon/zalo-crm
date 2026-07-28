@@ -74,13 +74,22 @@ async function processDueSteps() {
     });
 
     try {
-      // Resolve Friend for (account, contact) to get zaloUidInNick
+      // BUG SQ1 fix (2026-07-28): resolve Friend + check nick connected trước khi gửi.
+      // Trước đây sequence chỉ check zaloUidInNick tồn tại → nick offline vẫn attempt
+      // gửi → zaloOp NOT_CONNECTED → KHÔNG fatal (logged error) nhưng vẫn đốt 1 tick
+      // và log error. Filter sớm ở Friend query: chỉ pick Friend mà nick của nó đang connected.
       const friend = await prisma.friend.findFirst({
         where: { zaloAccountId: m.oaAccountId, contactId: m.contactId },
-        select: { zaloUidInNick: true },
+        select: {
+          zaloUidInNick: true,
+          zaloAccount: { select: { status: true } },
+        },
       });
       if (!friend?.zaloUidInNick) {
         throw new Error('friend_not_found_or_no_uid');
+      }
+      if (friend.zaloAccount.status !== 'connected') {
+        throw new Error('nick_not_connected');
       }
 
       // Resolve ContentBlock for the step's blockId
@@ -123,11 +132,14 @@ async function processDueSteps() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       const isRateLimited = err instanceof ZaloOpError && err.code === 'RATE_LIMITED';
+      // BUG SQ1 fix (2026-07-28): nick offline → retry sau 15 phút (không phải fail cứng,
+      // nick có thể reconnect). Trước đây nick_not_connected → 'failed' → KH mất step này.
+      const isNickOffline = msg === 'nick_not_connected';
       logger.warn(`[sequence-executor] step fail membership=${m.id}: ${msg}`);
       await prisma.automationExecutionLog.update({
         where: { id: log.id },
         data: {
-          status: isRateLimited ? 'paused' : 'failed',
+          status: isRateLimited || isNickOffline ? 'paused' : 'failed',
           sent: 0,
           failed: 1,
           error: msg.slice(0, 500),
@@ -135,12 +147,20 @@ async function processDueSteps() {
         },
       }).catch(() => {});
 
-      // Pause this membership on RATE_LIMIT to avoid tight loop; advance otherwise.
+      // Pause this membership on RATE_LIMIT or nick offline to avoid tight loop; advance otherwise.
       if (isRateLimited) {
         // Retry in 5 minutes
         await prisma.sequenceMembership.update({
           where: { id: m.id },
           data: { nextStepAt: new Date(Date.now() + 5 * 60_000) },
+        });
+        continue;
+      }
+      if (isNickOffline) {
+        // Retry in 15 minutes (nick reconnect chậm hơn rate limit)
+        await prisma.sequenceMembership.update({
+          where: { id: m.id },
+          data: { nextStepAt: new Date(Date.now() + 15 * 60_000) },
         });
         continue;
       }

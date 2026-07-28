@@ -115,33 +115,30 @@
             v-for="n in nicks"
             :key="n.id"
             class="f-nick-item"
-            :class="{
-              disabled: n.status !== 'connected' || n.broadcastBlacklisted,
-            }"
+            :class="nickClass(n)"
             :title="nickTooltip(n)"
           >
             <input
               type="checkbox"
               :checked="form.zaloAccountIds.includes(n.id)"
-              :disabled="n.status !== 'connected' || n.broadcastBlacklisted"
+              :disabled="!isNickSelectable(n)"
               @change="toggleNick(n.id)"
             />
             <span class="f-nick-info">
               <span class="f-nick-name">
                 {{ n.displayName || n.phone }}
-                <v-icon v-if="n.status !== 'connected'" size="14" color="error" class="ml-1">mdi-link-off</v-icon>
-                <v-icon v-else-if="n.broadcastBlacklisted" size="14" color="warning" class="ml-1">mdi-block-helper</v-icon>
-                <v-icon v-else size="14" color="success" class="ml-1">mdi-check-circle</v-icon>
+                <v-icon :size="14" :color="nickIconColor(n)" class="ml-1">{{ nickIcon(n) }}</v-icon>
               </span>
               <span class="f-nick-meta">
-                <span v-if="n.broadcastBlacklisted" class="text-warning">
-                  <v-icon size="11">mdi-block-helper</v-icon> blacklist{{ n.blacklistReason ? ': ' + n.blacklistReason : '' }}
-                </span>
-                <span v-else-if="n.status !== 'connected'" class="text-error">mất kết nối</span>
-                <span v-else>
+                <template v-if="n.broadcastBlacklisted">
+                  <v-icon size="11">mdi-block-helper</v-icon>
+                  blacklist{{ n.blacklistReason ? ': ' + n.blacklistReason : '' }}
+                </template>
+                <template v-else-if="n.status !== 'connected'">mất kết nối</template>
+                <template v-else>
                   <v-icon size="11">mdi-account-heart-outline</v-icon>
                   {{ (n.friendCount ?? 0).toLocaleString('vi-VN') }} bạn bè
-                </span>
+                </template>
               </span>
             </span>
           </label>
@@ -490,9 +487,27 @@ async function onNickChange(): Promise<void> {
 function nickTooltip(n: { status: string; broadcastBlacklisted?: boolean; blacklistReason?: string | null; friendCount?: number }): string {
   if (n.broadcastBlacklisted) return `Nick bị blacklist broadcast${n.blacklistReason ? ': ' + n.blacklistReason : ''} — admin cần gỡ trước khi dùng`;
   if (n.status !== 'connected') return 'Nick mất kết nối — cần quét QR lại';
-  return `SĽ bạn đã kết bạn của nick: ${(n.friendCount ?? 0).toLocaleString('vi-VN')}`;
+  return `SĐT bạn đã kết bạn của nick: ${(n.friendCount ?? 0).toLocaleString('vi-VN')}`;
 }
-  } catch { friendCount.value = 0; }
+
+function isNickSelectable(n: { status: string; broadcastBlacklisted?: boolean }): boolean {
+  return n.status === 'connected' && !n.broadcastBlacklisted;
+}
+
+function nickClass(n: { status: string; broadcastBlacklisted?: boolean }): Record<string, boolean> {
+  return { disabled: !isNickSelectable(n) };
+}
+
+function nickIcon(n: { status: string; broadcastBlacklisted?: boolean }): string {
+  if (n.broadcastBlacklisted) return 'mdi-block-helper';
+  if (n.status !== 'connected') return 'mdi-link-off';
+  return 'mdi-check-circle';
+}
+
+function nickIconColor(n: { status: string; broadcastBlacklisted?: boolean }): string {
+  if (n.broadcastBlacklisted) return 'warning';
+  if (n.status !== 'connected') return 'error';
+  return 'success';
 }
 
 const itemsModal = reactive({

@@ -12,6 +12,7 @@ import { zaloOps } from '../../shared/zalo-operations.js';
 import { resolveAccount, checkAccess, handleError, getAccessibleZaloAccountIds } from './zalo-route-helpers.js';
 import { getZaloScope } from './zalo-scope.js';
 import { markFriendRequestSent } from './friend-event-handler.js';
+import { zaloRateLimiter } from './zalo-rate-limiter.js';
 import { prisma } from '../../shared/database/prisma-client.js';
 import { normalizePhone } from '../../shared/utils/phone.js';
 import { FRIEND_INCLUDE_WITH_CONTACT, toFriendDto } from '../../shared/friend-serializer.js';
@@ -434,6 +435,21 @@ export async function friendRoutes(app: FastifyInstance) {
     if (!await checkAccess(request, reply, accountId, 'chat')) return;
     try {
       await resolveAccount(accountId, user.orgId);
+
+      // BUG #13 fix (2026-07-28): Pre-check rate-limit trước khi gọi SDK.
+      // Trước đây route này gọi zaloOps.sendFriendRequest trực tiếp → sale spam
+      // "Gửi lời mời" liên tục sẽ burn trần friend_action của nick, kéo theo
+      // automation target/welcome cũng bị block. Pre-check fail-closed ở đây
+      // để bảo vệ trần SDK (chỉ target-cron dùng friend_action cũng gọi checkLimits).
+      const rateCheck = await zaloRateLimiter.checkLimits(accountId, 'friend_action');
+      if (!rateCheck.allowed) {
+        logger.warn(
+          { accountId, reason: rateCheck.reason },
+          '[friend-routes] manual invite pre-check failed',
+        );
+        return reply.status(429).send({ error: 'rate_limited', reason: rateCheck.reason });
+      }
+
       const data = await zaloOps.sendFriendRequest(accountId, message, userId);
       await markFriendRequestSent(accountId, userId);
       return reply.status(201).send({ data });
